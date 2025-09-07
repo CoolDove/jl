@@ -1,6 +1,8 @@
 JlRecord :: struct {
 	time : Calendar_Time;
 	content : string;
+	// runtime
+	exclude : bool;
 }
 JlFile :: struct {
 	records : []JlRecord;
