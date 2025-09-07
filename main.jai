@@ -74,6 +74,7 @@ main :: () {
 		defer file_close(*edfile);
 		for matched_records {
 			file_write(*edfile, it.content);
+			file_write(*edfile, "\n");
 		}
 		info.loaded = matched_records.count;
 	}
@@ -102,12 +103,13 @@ main :: () {
 		ftarget := file_open(target_file, for_writing=true, keep_existing_content=false);
 		defer file_close(*ftarget);
 		for jlfile.records {
-			if it.exclude {
-				file_write(*ftarget, it.content);
-			} 
+			if !it.exclude continue;
+			file_write(*ftarget, it.content);
+			file_write(*ftarget, "\n");
 		}
 		for editted_jlfile.records {
 			file_write(*ftarget, it.content);
+			file_write(*ftarget, "\n");
 		}
 		log("Load %/% records, save % records.", info.loaded, info.all, info.editted);
 	}
