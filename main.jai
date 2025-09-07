@@ -20,7 +20,7 @@ main :: () {
 	jlfile := jlfile_parse(file_content); defer jlfile_release(*jlfile);
 
 	print("file content: % records\n", jlfile.records.count);
-	for jlfile.records print("--- record at %\n%\n", jlfile_time_to_string(it.time), it.content);
+	for jlfile.records print("--- record at %\n%\n", jlfile_time_to_string(it.time,, temp), it.content);
 
 	return;
 
