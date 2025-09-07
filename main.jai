@@ -1,3 +1,4 @@
+#load "args_reader.jai";
 #load "config.jai";
 #load "jl.jai";
 
@@ -31,7 +32,6 @@ main :: () {
 	jlfile = jlfile_parse(file_content); defer jlfile_release(*jlfile);
 	info.all = jlfile.records.count;
 
-	// for jlfile.records print("--- RECORD at %\n%\n", jlfile_time_to_string(it.time,, temp), it.content);
 	tags : [..]string; defer free(tags.data);
 	for args {
 		if it_index == 0 continue;
@@ -92,8 +92,8 @@ main :: () {
 	}
 
 	// ** save the file
-	editted_content := read_entire_file(edit_file,,temp);
-	editted_jlfile := jlfile_parse(editted_content); defer jlfile_release(*editted_jlfile);
+	editted_jlfile := jlfile_parse(read_entire_file(edit_file,,temp));
+	defer jlfile_release(*editted_jlfile);
 	info.editted = editted_jlfile.records.count;
 	defer file_delete(edit_file);
 
@@ -111,7 +111,10 @@ main :: () {
 			file_write(*ftarget, it.content);
 			file_write(*ftarget, "\n");
 		}
-		log("Load %/% records, save % records.", info.loaded, info.all, info.editted);
+		deleted := info.loaded-info.editted;
+		log("Load %/% records, save % records.%", info.loaded, info.all, info.editted,
+			ifx deleted>1 then tprint(" % records are deleted.", deleted) else (ifx deleted>0 then " 1 record is deleted." else "")
+		);
 	}
 }
 

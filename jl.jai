@@ -57,6 +57,7 @@ jlfile_parse :: (src: string, allocator:=context.allocator) -> JlFile {
 }
 
 jlfile_release :: (file: *JlFile) {
+	for file.records free(it.content);
 	free(file.records.data);
 }
 

@@ -1,7 +1,3 @@
-#import "File";
-#import "String";
-
-
 #if OS == .WINDOWS {
 	PATHSEP :: "\\";
 } else {
@@ -23,6 +19,8 @@ get_user_data_directory :: () -> string {
 }
 }
 
-#scope_file;
+#import "File";
+#import "String";
 
+#scope_file;
 jl_folder : string;
