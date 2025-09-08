@@ -16,8 +16,13 @@ info : struct {
 	editted : int;
 }
 
+runinfo :struct {
+	load_all    : bool;
+	create_mode : bool;
+}
+
 main :: () {
-	{
+	#if false {
 		secret : string;
 		assert(test_encryption(*secret));
 		print("secret:\n%\n", secret);
@@ -45,6 +50,8 @@ main :: () {
 		if it_index == 0 continue;
 		if it[0] == #char "@" {
 			array_add(*tags, it);
+		} else if it == "--all" {
+			runinfo.load_all = true; // Doesn't work if any tag specified.
 		}
 	}
 	if tags.count > 0 {
@@ -59,7 +66,11 @@ main :: () {
 			}
 		}
 	} else {
-		for * jlfile.records array_add(*matched_records, it);
+		if runinfo.load_all {
+			for * jlfile.records array_add(*matched_records, it);
+		} else {
+			runinfo.create_mode = true;
+		}
 	}
 
 	// ** get editor
@@ -80,11 +91,17 @@ main :: () {
 	{// ** create the edit file
 		edfile := file_open(edit_file, for_writing=true, keep_existing_content=false);
 		defer file_close(*edfile);
-		for matched_records {
-			file_write(*edfile, it.content);
-			file_write(*edfile, "\n");
+		if runinfo.create_mode {
+			apltime := current_time_consensus();
+			ct := to_calendar(current_time_consensus());
+			file_write(*edfile, tprint("% ", jlfile_time_to_string(ct)));
+		} else {
+			for matched_records {
+				file_write(*edfile, it.content);
+				file_write(*edfile, "\n");
+			}
+			info.loaded = matched_records.count;
 		}
-		info.loaded = matched_records.count;
 	}
 
 	if !create_process(*process_edit, editor_str, edit_file) {
@@ -111,7 +128,7 @@ main :: () {
 		ftarget := file_open(target_file, for_writing=true, keep_existing_content=false);
 		defer file_close(*ftarget);
 		for jlfile.records {
-			if !it.exclude continue;
+			if !runinfo.create_mode && !it.exclude continue;
 			file_write(*ftarget, it.content);
 			file_write(*ftarget, "\n");
 		}
