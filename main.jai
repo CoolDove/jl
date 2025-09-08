@@ -1,5 +1,7 @@
+// TODO: Auto create the file.
 #load "args_reader.jai";
 #load "config.jai";
+#load "crypto.jai";
 #load "jl.jai";
 
 process_edit : Process;
@@ -15,6 +17,12 @@ info : struct {
 }
 
 main :: () {
+	{
+		secret : string;
+		assert(test_encryption(*secret));
+		print("secret:\n%\n", secret);
+	}
+
 	args := get_command_line_arguments();
 
 	jlfolder := get_jl_directory();
@@ -118,6 +126,73 @@ main :: () {
 	}
 }
 
+test_encryption :: (output: *string) -> bool {
+	key := sha256("Wahtever");
+	encrypted, encrypt_ok := jl_encrypt(xx "And you don't seem to understand.", key, temp);
+	if !encrypt_ok return false;
+	write_entire_file("~secret", cast(string)encrypted);
+	data, dataok := read_entire_file("~secret",, temp);
+	if !dataok return false;
+	decrypted, decrypt_ok := jl_decrypt(xx data, key, temp);
+	if output output.* = cast(string)decrypted;
+	return decrypt_ok;
+}
+
+encrypt_test :: () {
+	key:= sha256("Whatever");
+	iv : [16]u8= .[2,4,6,8,2,4,6,8,2,4,6,8,2,4,6,8];
+	args := get_command_line_arguments();
+	plain := ifx args.count > 1 then args[1] else "And you don't seem to understand.";
+
+	cipher : []u8;
+	{// Encypt the file.
+		ctx := EVP_CIPHER_CTX_new(); defer EVP_CIPHER_CTX_free(ctx);
+		EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), null, key.data, iv.data);
+		buffer := NewArray(plain.count * 2, u8, false); defer array_free(buffer);
+		total : s32;
+		size : s32;
+		EVP_EncryptUpdate(ctx, buffer.data, *size, plain.data, xx plain.count); // ctx: *EVP_CIPHER_CTX, out: *u8, outlen: *cint, in: *u8, inlen: cint
+		total += size;
+		if EVP_EncryptFinal_ex(ctx, buffer.data+total, *size) == 0 { // ctx: *EVP_CIPHER_CTX, out: *u8, outlen: *cint
+			print("Encryption failed.\n");
+		} else {
+			total += size;
+			result := slice(xx buffer, 0, total);
+			cipher = xx result;
+			write_entire_file("secret", result);
+			print("encrypted: %\n", result);
+		}
+	}
+	data, ok := read_entire_file("secret");
+	if ok {// Decrypt what's in file `secret`.
+		ctx := EVP_CIPHER_CTX_new(); defer EVP_CIPHER_CTX_free(ctx);
+		EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), null, key.data, iv.data);
+		buffer := NewArray(plain.count * 4, u8, false); defer array_free(buffer);
+		total : s32;
+		size : s32;
+
+		EVP_DecryptUpdate(ctx, buffer.data, *size, data.data, xx data.count);
+		total += size;
+		if EVP_DecryptFinal_ex(ctx, buffer.data+total, *size) == 0 {
+			total += size;
+			result := slice(xx buffer, 0, total);
+			print("Decryption failed. : %\n", result);
+		} else {
+			total += size;
+			result := slice(xx buffer, 0, total);
+			print("What's in the secret: %\n", result);
+		}
+	}
+}
+
+sha256 :: (str: string) -> [32]u8 {
+	key: [32]u8;
+	SHA256(str.data, xx str.count, *key[0]);
+	return key;
+}
+
+// #import,dir "modules/crypto";
+#import,dir "modules/openssl";
 #import "File";
 #import "Basic";
 #import "Process";
