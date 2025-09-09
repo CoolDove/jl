@@ -96,8 +96,9 @@ Currently we only support tag filtering.
 - jl @idea # search for records with @idea tagged in its title line.
 
 And operations you have:
+- jl --edit # this is the default operation.
 - jl --print
-- jl --default # this is the default operation.
+- jl --tags # TODO yet
 
 Or you can just type:
 - jl # to create a new record.
