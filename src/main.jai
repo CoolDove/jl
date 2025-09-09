@@ -1,5 +1,6 @@
 #load "args_reader.jai";
 #load "config.jai";
+#load "console.jai";
 #load "crypto.jai";
 #load "jl.jai";
 
@@ -37,6 +38,7 @@ main :: () {
 		assert(test_encryption(*secret));
 		print("secret:\n%\n", secret);
 	}
+	init_console();
 
 	args := get_command_line_arguments();
 
