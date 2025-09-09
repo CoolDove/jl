@@ -256,7 +256,9 @@ operation_edit :: () {
 
 operation_print :: () {
 	for matched_records {
-		print("%\n", it.content);
+		time    := slice(it.content, 0, 24);
+		content := slice(it.content, 24, it.content.count-24);
+		print("\e[33m%\e[39m%\n", time, content);
 	}
 }
 
