@@ -1,4 +1,3 @@
-// TODO: Auto create the file.
 #load "args_reader.jai";
 #load "config.jai";
 #load "crypto.jai";
@@ -22,7 +21,6 @@ runinfo :struct {
 	filter_specified           : bool;
 	operation_specified : bool;
 
-	// load_all     : bool;
 	create_mode  : bool;
 
 	operation    : OperationMode;
@@ -45,13 +43,18 @@ main :: () {
 	jlfolder := get_jl_directory();
 	make_directory_if_it_does_not_exist(jlfolder);
 
-	runinfo.target_file = get_jl_filepath("default.jl"); defer free(runinfo.target_file);
+	// @Temporary: We will have a config file.
+	runinfo.target_file = to_string(getenv("JLDEFAULTFILE"));
+	if runinfo.target_file.data == null {
+		runinfo.target_file = get_jl_filepath("default.jl"); // No free!
+	}
+	print("Load jlfile from '%' .\n", runinfo.target_file);
 
 	// ** load file
 	file_content, file_read_good := read_entire_file(runinfo.target_file);
 	if !file_read_good {
 		// TODO: create the file.
-		log_error("Can't read file %", runinfo.target_file);
+		log_error("Can't read file '%' .", runinfo.target_file);
 		exit(1);
 	}
 	jlfile = jlfile_parse(file_content); defer jlfile_release(*jlfile);
@@ -76,6 +79,30 @@ main :: () {
 		} else if it == "--t" || it == "--tags" {
 			runinfo.operation = .ListTags;
 			runinfo.operation_specified = true;
+		} else if it == "--help" || it == "-help" || it == "--h" || it == "-h" {
+			print(
+#string DONE
+`jl` is a journaling tool inspired by `jrnl`.
+To use this, you should have these setups.
+
+- `JLEDITOR` or `EDITOR` in environment.
+
+- `JLDEFAULTFILE` in environment, specifying the file path. This 
+is optional. By default the file will be in the user folder. You 
+can see that path in the first line. And this is also temporary,
+we will have a config file later. So that you can have multiple files.
+
+Currently we only support tag filtering.
+- jl @idea # search for records with @idea tagged in its title line.
+
+And operations you have:
+- jl --print
+- jl --default # this is the default operation.
+
+Or you can just type:
+- jl # to create a new record.
+DONE);
+			exit(0);
 		} else {
 			print("Unknown arguments.\n");
 			exit(0);
