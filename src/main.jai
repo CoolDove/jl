@@ -22,6 +22,10 @@ runinfo :struct {
 	filter_specified           : bool;
 	operation_specified : bool;
 
+	// password : string;
+	password_sha256 : [32]u8;
+	file_is_encrypted : bool;
+
 	create_mode  : bool;
 
 	operation    : OperationMode;
@@ -33,11 +37,18 @@ runinfo :struct {
 }
 
 main :: () {
-	#if false {
+	#if false { // test read input
+		print("Input: ");
+		read := read_stdin(true);
+		print("What i read: [%]\n", read);
+		exit(0);
+	}
+	#if false {// test encryption
 		secret : string;
 		assert(test_encryption(*secret));
 		print("secret:\n%\n", secret);
 	}
+
 	init_console();
 
 	args := get_command_line_arguments();
@@ -52,19 +63,8 @@ main :: () {
 	}
 	print("Load jlfile from '%' .\n", runinfo.target_file);
 
-	// ** load file
-	file_content, file_read_good := read_entire_file(runinfo.target_file);
-	if !file_read_good {
-		// TODO: create the file.
-		log_error("Can't read file '%' .", runinfo.target_file);
-		exit(1);
-	}
-	jlfile = jlfile_parse(file_content); defer jlfile_release(*jlfile);
-	info.all = jlfile.records.count;
-
-	tags : [..]string; defer free(tags.data);
-
 	runinfo.create_mode = args.count == 1;
+	tags : [..]string; defer free(tags.data);
 	// NOTE: If the filter is not specified, we load all the records.
 	// Running `jl` with no argument, will lead to create mode.
 	for args {
@@ -82,35 +82,56 @@ main :: () {
 			runinfo.operation = .ListTags;
 			runinfo.operation_specified = true;
 		} else if it == "--help" || it == "-help" || it == "--h" || it == "-h" {
-			print(
-#string DONE
-`jl` is a journaling tool inspired by `jrnl`.
-To use this, you should have these setups.
-
-- `JLEDITOR` or `EDITOR` in environment.
-
-- `JLDEFAULTFILE` in environment, specifying the file path. This 
-is optional. By default the file will be in the user folder. You 
-can see that path in the first line. And this is also temporary,
-we will have a config file later. So that you can have multiple files.
-
-Currently we only support tag filtering.
-- jl @idea # search for records with @idea tagged in its title line.
-
-And operations you have:
-- jl --edit # this is the default operation.
-- jl --print
-- jl --tags # TODO yet
-
-Or you can just type:
-- jl # to create a new record.
-DONE);
+			print(HELP_STRING);
+			exit(0);
+		} else if begins_with(it, "--decrypt") {
+			operation_decrypt();// pre pass
+			exit(0);
+		} else if begins_with(it, "--encrypt-save-key") {
+			operation_encrypt(true);// pre pass
+			exit(0);
+		} else if begins_with(it, "--encrypt") {
+			operation_encrypt(false);// pre pass
 			exit(0);
 		} else {
 			print("Unknown arguments.\n");
 			exit(0);
 		}
 	}
+
+	// ** load file
+	file_content, file_read_good := read_entire_file(runinfo.target_file);
+	defer free(file_content);
+
+	if !file_read_good {
+		// TODO: create the file.
+		log_error("Can't read file '%'.", runinfo.target_file);
+		exit(1);
+	}
+
+	content : string;
+	if is_data_jl_encrypted(xx file_content) { // load encrypted file
+		using runinfo;
+		file_is_encrypted = true;
+
+		if !try_get_stored_key(*password_sha256) {
+			print("Password:");
+			password_sha256 = sha256(read_pswd(allocator=temp));
+		}
+		cipher := get_encrypted_jlfile_cipher(xx file_content); // slice(file_content, JLMAGIC.count, file_content.count-JLMAGIC.count);
+		data, decrypt_ok := jl_decrypt(xx cipher, password_sha256);
+		if !decrypt_ok {
+			print("Wrong password.");
+			exit(0);
+		} else {
+			content = xx data;
+		}
+	} else {
+		content = file_content;
+	}
+
+	jlfile = jlfile_parse(content); defer jlfile_release(*jlfile);
+	info.all = jlfile.records.count;
 
 	if runinfo.filter_specified {
 		for * jlfile.records {
@@ -204,17 +225,28 @@ operation_edit :: () {
 	if info.editted == 0 {
 		log("Found 0 record, exit without saving...");
 	} else {
-		ftarget := file_open(runinfo.target_file, for_writing=true, keep_existing_content=false);
-		defer file_close(*ftarget);
+		sb : String_Builder;
+		init_string_builder(*sb); defer free_buffers(*sb);
+
 		for jlfile.records {
 			if !runinfo.create_mode && !it.exclude continue;
-			file_write(*ftarget, it.content);
-			file_write(*ftarget, "\n");
+			print_to_builder(*sb, "%\n", it.content);
 		}
 		for editted_jlfile.records {
-			file_write(*ftarget, it.content);
-			file_write(*ftarget, "\n");
+			print_to_builder(*sb, "%\n", it.content);
 		}
+		content := builder_to_string(*sb); defer free(content);
+
+		ftarget := file_open(runinfo.target_file, for_writing=true, keep_existing_content=false);
+		if runinfo.file_is_encrypted {
+			file_write(*ftarget, cast(string)JLMAGIC);
+			encrypted := jl_encrypt(xx content, runinfo.password_sha256);
+			file_write(*ftarget, cast(string)encrypted);
+		} else {
+			file_write(*ftarget, content);
+		}
+		file_close(*ftarget);
+
 		deleted := info.loaded-info.editted;
 		log("Load %/% records, save % records.%", info.loaded, info.all, info.editted,
 			ifx deleted>1 then tprint(" % records are deleted.", deleted) else (ifx deleted>0 then " 1 record is deleted." else "")
@@ -237,6 +269,102 @@ operation_list_tags :: () {
 	}
 }
 
+operation_decrypt :: () {
+	using runinfo;
+	filecontent, read_ok := read_entire_file(target_file);
+	if !read_ok {
+		print("Failed to read target file: %.", target_file);
+		return;
+	}
+	if !is_data_jl_encrypted(xx filecontent) {
+		print("File is plaintext, you don't need to decrypt.\n");
+		return;
+	}
+	
+	if !try_get_stored_key(*password_sha256) {
+		print("Password:");
+		password_sha256 = sha256(read_pswd(allocator=temp));
+	}
+
+	decrypted_data, dec_ok := jl_decrypt(xx slice(filecontent, JLMAGIC.count, filecontent.count-JLMAGIC.count), password_sha256);
+	defer array_free(decrypted_data);
+	if !dec_ok {
+		print("Wrong password!\n");
+		return;
+	}
+
+	file := file_open(target_file, for_writing=true);
+	file_write(*file, cast(string)decrypted_data);
+	file_close(*file);
+	print("Plain text jl file saved to %.\n", target_file);
+
+	keypath := get_jl_filepath("default.key", temp);
+	if file_exists(keypath) {
+		file_delete(keypath);
+		print("Old key file % deleted.\n", keypath);
+	}
+}
+
+operation_encrypt :: (save_key: bool) {
+	using runinfo;
+	filecontent, read_ok := read_entire_file(target_file);
+	if !read_ok {
+		print("Failed to read target file: %.", target_file);
+		return;
+	}
+	if is_data_jl_encrypted(xx filecontent) {
+		print("why don't you go here\n");
+		print(#string DONE
+File is already encrypted, if you want to change the password, you 
+can --decrypt it first, then encrypt again.
+DONE);
+		return;
+	}
+
+	print("Password:");
+	password := read_pswd(allocator=temp);
+	password_sha256 = sha256(password);
+	print("Repeat password:");
+	repeat := read_pswd(allocator=temp);
+	if password != repeat {
+		print("Please input the same password!\n");
+	} else {
+		encrypted_data := jl_encrypt(xx filecontent, password_sha256);
+		defer array_free(encrypted_data);
+		file := file_open(target_file, for_writing=true);
+		file_write(*file, cast(string)JLMAGIC);
+		file_write(*file, cast(string)encrypted_data);
+		file_close(*file);
+		print("Encrypted jl file saved to %.\n", target_file);
+		if save_key {
+			keypath := get_jl_filepath("default.key", temp);
+			write_entire_file(keypath, cast(string)sha256_raw_to_hex(password_sha256));
+			print("Key saved to %\n", keypath);
+		}
+	}
+}
+
+file_exists :: (path: string) -> bool {
+	f, ok := file_open(path); defer file_close(*f);
+	return ok;
+}
+
+try_get_stored_key :: (outkey: *[32]u8) -> bool {
+	keypath := get_jl_filepath("default.key", temp);
+
+	f, fopenok := file_open(keypath);
+	if !fopenok  return false; 
+	file_close(*f);
+
+	hexkey, ok := read_entire_file(keypath);
+	assert(hexkey.count == 64);
+	if !ok return false;
+	rawkey, convert_ok := sha256_hex_to_raw(cast([64]u8)hexkey.data);
+	if !convert_ok return false;
+	outkey.* = rawkey;
+	return ok;
+}
+
 sha256 :: (str: string) -> [32]u8 {
 	key: [32]u8;
 	SHA256(str.data, xx str.count, *key[0]);
@@ -252,3 +380,38 @@ sha256 :: (str: string) -> [32]u8 {
 	Windows :: #import "Windows";
 	getenv :: Windows.getenv;
 }
+
+JLMAGIC :[16]u8: xx "VMWVWWWVWWVMVWMM";
+
+HELP_STRING :: #string DONE
+`jl` is a journaling tool inspired by `jrnl`.
+To use this, you should have these setups.
+
+- `JLEDITOR` or `EDITOR` in environment.
+
+- `JLDEFAULTFILE` in environment, specifying the file path. This 
+is optional. By default the file will be in the user folder. You 
+can see that path in the first line. And this is also temporary,
+we will have a config file later. So that you can have multiple files.
+
+Currently we only support tag filtering.
+- jl @idea # search for records with @idea tagged in its title line.
+
+And operations you have:
+- jl --edit # this is the default operation.
+- jl --print
+- jl --tags # TODO yet
+
+Or you can just type:
+- jl # to create a new record.
+DONE
+
+is_data_jl_encrypted :: inline (data: []u8) -> bool {
+	return begins_with(cast(string)data, cast(string)JLMAGIC);
+}
+
+get_encrypted_jlfile_cipher :: inline (data: []u8) -> []u8 {
+	return array_view(data, JLMAGIC.count, data.count-JLMAGIC.count);
+}
+
+read_pswd :: #bake_arguments read_stdin(invisible=true);

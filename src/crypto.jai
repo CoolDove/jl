@@ -36,6 +36,36 @@ jl_decrypt :: (cipher: []u8, key: [32]u8, allocator:=context.allocator) -> ([]u8
 	}
 }
 
+
+sha256_raw_to_hex :: (raw: [32]u8) -> [64]u8 {
+	digits :: "0123456789abcdef";
+	hex :[64]u8= ---;
+	for i: 0..31 {
+		hex[i * 2]     = digits[(raw[i] >> 4) & 0xF];
+		hex[i * 2 + 1] = digits[raw[i] & 0xF];
+	}
+	return hex;
+}
+
+sha256_hex_to_raw :: (hex: [64]u8) -> [32]u8, bool {
+	hexval :: (c: u8) -> int {
+		if (#char "0" <= c && c <= #char "9") return c - #char "0";
+		if (#char "a" <= c && c <= #char "f") return c - #char "a" + 10;
+		if (#char "A" <= c && c <= #char "F") return c - #char "A" + 10;
+		return -1;
+	};
+	raw :[32]u8= --- ;
+
+	for i: 0..31 {
+		hi := hexval(hex[i * 2]);
+		lo := hexval(hex[i * 2 + 1]);
+		if (hi < 0 || lo < 0) return raw, false;
+		raw[i] = (cast(u8)hi << 4) | cast(u8)lo;
+	}
+	return raw, true;
+}
+
+
 #import,dir "modules/openssl";
 
 #scope_file;
@@ -87,3 +117,4 @@ encrypt_test :: () {
 		}
 	}
 }
+
