@@ -184,7 +184,7 @@ operation_edit :: () {
 		defer file_close(*edfile);
 		if runinfo.create_mode {
 			apltime := current_time_consensus();
-			ct := to_calendar(current_time_consensus());
+			ct := to_calendar(current_time_consensus(), .LOCAL);
 			file_write(*edfile, tprint("% ", jlfile_time_to_string(ct)));
 		} else {
 			for matched_records {
