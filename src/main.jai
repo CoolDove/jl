@@ -136,12 +136,17 @@ main :: () {
 	if runinfo.filter_specified {
 		for * jlfile.records {
 			_, title_line, _ := split_from_left(it.content, #char "\n");
+			match := true;
 			for tag: tags {
-				if contains(title_line, tag) {
-					array_add(*matched_records, it);
-				} else {
-					it.exclude = true;
+				if !contains(title_line, tag) {
+					match = false;
+					break;
 				}
+			}
+			if match {
+				array_add(*matched_records, it);
+			} else {
+				it.exclude = true;
 			}
 		}
 	} else {
