@@ -153,6 +153,10 @@ main :: () {
 		for * jlfile.records array_add(*matched_records, it);
 	}
 
+	bubble_sort(array_view(matched_records, 0), (a: *JlRecord, b: *JlRecord) -> int {
+		return ifx a.apollo_time > b.apollo_time then -1 else 1;
+	});
+
 	if #complete runinfo.operation == {
 		case .Edit;
 			operation_edit();
@@ -233,11 +237,11 @@ operation_edit :: () {
 		sb : String_Builder;
 		init_string_builder(*sb); defer free_buffers(*sb);
 
-		for jlfile.records {
+		for * jlfile.records {
 			if !runinfo.create_mode && !it.exclude continue;
 			print_to_builder(*sb, "%\n", it.content);
 		}
-		for editted_jlfile.records {
+		for * editted_jlfile.records {
 			print_to_builder(*sb, "%\n", it.content);
 		}
 		content := builder_to_string(*sb); defer free(content);
@@ -260,7 +264,7 @@ operation_edit :: () {
 }
 
 operation_print :: () {
-	for matched_records {
+	for < matched_records {
 		time    := slice(it.content, 0, 24);
 		content := slice(it.content, 24, it.content.count-24);
 		print("\e[33m%\e[39m%\n", time, content);
@@ -381,6 +385,7 @@ sha256 :: (str: string) -> [32]u8 {
 #import,dir "modules/openssl";
 #import "File";
 #import "Basic";
+#import "Sort";
 #import "Process";
 
 #if OS == .WINDOWS {

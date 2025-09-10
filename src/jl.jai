@@ -1,5 +1,6 @@
 JlRecord :: struct {
 	time : Calendar_Time;
+	apollo_time : Apollo_Time;
 	content : string;
 	// runtime
 	exclude : bool;
@@ -35,6 +36,7 @@ jlfile_parse :: (src: string, allocator:=context.allocator) -> JlFile {
 			}
 			record := JlRecord.{
 				time = time,
+				apollo_time = apollo_time,
 				content = str,
 			};
 			array_add(*records, record);
@@ -42,12 +44,17 @@ jlfile_parse :: (src: string, allocator:=context.allocator) -> JlFile {
 	}
 
 	time : Calendar_Time;
+	apollo_time : Apollo_Time;
 	while !handler.failed {
 		line, found := consume_next_line(*handler);
 		if !found break;
-		if trim(line) != "" && line[0] == #char "[" && try_parse_calender_time(line, *time) {
+		next_time : Calendar_Time;
+		next_apollo_time : Apollo_Time;
+		if trim(line) != "" && line[0] == #char "[" && try_parse_calender_time(line, *next_time, *next_apollo_time) {
 			// ** upload current
 			SUBMIT_CURRENT();
+			time = next_time;
+			apollo_time = next_apollo_time;
 		}
 		print_to_builder(*buffer, line);
 		print_to_builder(*buffer, "\n");
@@ -74,7 +81,7 @@ jlfile_time_to_string :: time_to_string;
 
 #scope_file;
 rune :: #type s64;
-try_parse_calender_time :: (str: string, to: *Calendar_Time) -> bool {
+try_parse_calender_time :: (str: string, to: *Calendar_Time=null, to_apollo_time: *Apollo_Time=null) -> bool {
 	if str.count < 24 return false;
 	if str[0]  != "[" return false;
 	if str[23] != "]" return false;
@@ -122,15 +129,21 @@ try_parse_calender_time :: (str: string, to: *Calendar_Time) -> bool {
 
 	ct : Calendar_Time;
 	ct.year = xx int_since(1);
-	ct.month_starting_at_0 = xx int_since(6);
-	ct.day_of_month_starting_at_0 = xx int_since(9);
+	ct.month_starting_at_0 = xx (int_since(6)-1);
+	ct.day_of_month_starting_at_0 = xx (int_since(9)-1);
 	ct.hour = xx int_since(12);
 	ct.minute = xx int_since(15);
 	ct.second = xx int_since(18);
 	if s == "PM" || s == "pm" ct.hour += 12;
 
-	// TODO: Maybe i can optimize this.
-	to.* = to_calendar(calendar_to_apollo(ct));// to reset the 
+	// TODO: Maybe i can optimize this, and handle the error.
+	apl_time := calendar_to_apollo(ct);
+	if to_apollo_time != null {
+		to_apollo_time.* = apl_time;
+	}
+	if to != null {
+		to.* = to_calendar(apl_time);// to reset the weekday
+	}
 	return true;
 }
 
