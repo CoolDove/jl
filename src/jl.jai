@@ -130,7 +130,6 @@ try_parse_calender_time :: (str: string, to: *Calendar_Time) -> bool {
 	if s == "PM" || s == "pm" ct.hour += 12;
 
 	// TODO: Maybe i can optimize this.
-	// TODO: Handle time zone.
 	to.* = to_calendar(calendar_to_apollo(ct));// to reset the 
 	return true;
 }
