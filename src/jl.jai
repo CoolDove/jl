@@ -137,7 +137,10 @@ try_parse_calender_time :: (str: string, to: *Calendar_Time=null, to_apollo_time
 	if s == "PM" || s == "pm" ct.hour += 12;
 
 	// TODO: Maybe i can optimize this, and handle the error.
-	apl_time := calendar_to_apollo(ct);
+	apl_time, time_valid := jlfile_calendar_to_apollo(ct);
+	if !time_valid {
+		log_error("\e[35mInvalid time found:\e[39m %\n", jlfile_time_to_string(ct));
+	}
 	if to_apollo_time != null {
 		to_apollo_time.* = apl_time;
 	}
@@ -162,4 +165,39 @@ time_to_string :: (ct: Calendar_Time, allocator:=temp) -> string {
 		date_part(second),
 		ifx pm then "PM" else "AM"
 	);
+}
+
+jlfile_calendar_to_apollo :: (ct: Calendar_Time) -> Apollo_Time, bool {
+	#if OS == .WINDOWS {
+		// @Incomplete.  See :OSSpecific
+		result: Apollo_Time = ---;
+
+		W :: #import "Windows";
+
+		st: W.SYSTEMTIME;
+		st.wYear      = xx,trunc ct.year;
+		st.wMonth     = xx,trunc (ct.month\      _starting_at_0 + 1);
+		st.wDay       = xx,trunc (ct.day_of_month_starting_at_0 + 1);
+		st.wDayOfWeek = xx,trunc ct .day_of_week\_starting_at_0;
+		st.wHour      = xx,trunc ct.hour;
+		st.wMinute    = xx,trunc ct.minute;
+		st.wSecond    = xx,trunc ct.second;
+		st.wMilliseconds = xx,trunc ct.millisecond;
+
+		ft: FILETIME;
+		success := W.SystemTimeToFileTime(*st, *ft);
+		if success == .FALSE return current_time_consensus(), false;
+
+		if ct.time_zone == .LOCAL {
+			ft_local: FILETIME;
+			success := W.LocalFileTimeToFileTime(*ft, *ft_local);
+			if success ft = ft_local;
+			assert(success != .FALSE);
+		}
+
+		apollo := filetime_to_apollo(ft);
+		return apollo, success == .TRUE;
+	} else {
+		return calendar_to_string(ct), true;
+	}
 }
