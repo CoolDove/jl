@@ -19,8 +19,9 @@ info : struct {
 runinfo :struct {
 	target_file  : string;
 
-	filter_specified           : bool;
+	filter_specified    : bool;
 	operation_specified : bool;
+	only_today          : bool;
 
 	// password : string;
 	password_sha256 : [32]u8;
@@ -64,13 +65,19 @@ main :: () {
 	print("Load jlfile from '%' .\n", runinfo.target_file);
 
 	runinfo.create_mode = args.count == 1;
-	tags : [..]string; defer free(tags.data);
+
+
+	// ** filtering
+	tags :[..]string; defer free(tags.data);
 	// NOTE: If the filter is not specified, we load all the records.
 	// Running `jl` with no argument, will lead to create mode.
 	for args {
 		if it_index == 0 continue;
 		if it[0] == #char "@" {
 			array_add(*tags, it);
+			runinfo.filter_specified = true;
+		} else if it == "-today" || it == "-t" {// @Temporary: We will have a better time filtering.
+			runinfo.only_today = true;
 			runinfo.filter_specified = true;
 		} else if it == "--e" || it == "--edit" {
 			runinfo.operation = .Edit;
@@ -133,11 +140,19 @@ main :: () {
 	jlfile = jlfile_parse(content); defer jlfile_release(*jlfile);
 	info.all = jlfile.records.count;
 
+	now := to_calendar(current_time_consensus(), .LOCAL);
+	today := now;
+	today.hour, today.minute, today.second, today.millisecond = 0,0,0,0;
+	today_at := calendar_to_apollo(today);
+
 	if runinfo.filter_specified {
 		for * jlfile.records {
 			_, title_line, _ := split_from_left(it.content, #char "\n");
 			match := true;
-			for tag: tags {
+			if runinfo.only_today && calendar_to_apollo(it.time) < today_at {
+				match = false;
+			}
+			if match for tag: tags {
 				if !contains(title_line, tag) {
 					match = false;
 					break;
