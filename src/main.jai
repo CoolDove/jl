@@ -66,7 +66,6 @@ main :: () {
 
 	runinfo.create_mode = args.count == 1;
 
-
 	// ** filtering
 	tags :[..]string; defer free(tags.data);
 	// NOTE: If the filter is not specified, we load all the records.
@@ -107,13 +106,19 @@ main :: () {
 	}
 
 	// ** load file
-	file_content, file_read_good := read_entire_file(runinfo.target_file);
-	defer free(file_content);
+	file_content, file_read_good := read_entire_file(runinfo.target_file, log_errors=false);
+	defer if file_read_good free(file_content);
 
 	if !file_read_good {
-		// TODO: create the file.
-		log_error("Can't read file '%'.", runinfo.target_file);
-		exit(1);
+		if confirm_yn(tprint("File \e[31m%\e[39m doesn't exist, create?", runinfo.target_file)) {
+			path, _, _, _ := path_decomp(runinfo.target_file);
+			make_directory_if_it_does_not_exist(path, true);
+			runinfo.create_mode = true;
+			write_entire_file(runinfo.target_file, "");
+		} else {
+			log_error("Can't read file '%'.", runinfo.target_file);
+			exit(1);
+		}
 	}
 
 	content : string;

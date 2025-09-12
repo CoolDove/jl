@@ -7,6 +7,23 @@ init_console :: () {
 	}
 }
 
+confirm_yn :: (prompt: string) -> bool {
+	_buffer :[128]u8;
+	buffer :[]u8= .{ count=128, data=_buffer.data };
+	while true {
+		print(prompt);
+		print(" (y/n):");
+		read : string;
+		read_stdin_to_buffer(*buffer, *read);
+		if read == "y" {
+			return true;
+		} else if read == "n" {
+			return false;
+		}
+	}
+	return false;
+}
+
 read_stdin :: ($invisible:bool=false, $buffer_size:int=1024, allocator:= context.allocator) -> string {
 	push_allocator(allocator);
 	#assert buffer_size % 1024 == 0;
@@ -38,6 +55,31 @@ read_stdin :: ($invisible:bool=false, $buffer_size:int=1024, allocator:= context
 		return result;
 	}
 }
+
+read_stdin_to_buffer :: (buffer:*[]u8, result: *string, $invisible:bool=false) {
+	#if OS == .WINDOWS {
+		stdin = ifx stdin!=null else GetStdHandle( STD_INPUT_HANDLE );
+		// setup console mode
+		orig_mode : DWORD;
+		GetConsoleMode(stdin, *orig_mode);
+
+		#if invisible {
+			SetConsoleMode(stdin, orig_mode & ~ENABLE_ECHO_INPUT);
+		}
+		defer #if invisible {// recover console mode
+			SetConsoleMode(stdin, orig_mode);
+		}
+
+		bytes_read : s32;
+		if !ReadConsoleA( stdin, buffer.data, xx buffer.count, *bytes_read ) return ;
+		bytes_read -= 2; // remove \r\n
+
+		result.data  = buffer.data;
+		result.count = bytes_read;
+	}
+}
+
+
 
 #scope_file;
 
