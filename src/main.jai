@@ -258,10 +258,12 @@ operation_edit :: () {
 
 		for * jlfile.records {
 			if !runinfo.create_mode && !it.exclude continue;
-			print_to_builder(*sb, "%\n", it.content);
+			append(*sb, it.content);
+			append(*sb, "\n");
 		}
 		for * editted_jlfile.records {
-			print_to_builder(*sb, "%\n", it.content);
+			append(*sb, it.content);
+			append(*sb, "\n");
 		}
 		content := builder_to_string(*sb); defer free(content);
 

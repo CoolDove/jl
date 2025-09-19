@@ -56,8 +56,8 @@ jlfile_parse :: (src: string, allocator:=context.allocator) -> JlFile {
 			time = next_time;
 			apollo_time = next_apollo_time;
 		}
-		print_to_builder(*buffer, line);
-		print_to_builder(*buffer, "\n");
+		append(*buffer, line);
+		append(*buffer, "\n");
 	}
 	SUBMIT_CURRENT();
 	return .{records};
