@@ -50,7 +50,7 @@ jlfile_parse :: (src: string, allocator:=context.allocator) -> JlFile {
 		if !found break;
 		next_time : Calendar_Time;
 		next_apollo_time : Apollo_Time;
-		if trim(line) != "" && line[0] == #char "[" && try_parse_calender_time(line, *next_time, *next_apollo_time) {
+		if trim(line) != "" && line[0] == #char "[" && try_parse_calendar_time(line, *next_time, *next_apollo_time) {
 			// ** upload current
 			SUBMIT_CURRENT();
 			time = next_time;
@@ -70,7 +70,7 @@ jlfile_release :: (file: *JlFile) {
 
 jlfile_parse_time :: (str: string) -> Calendar_Time, bool {
 	ct : Calendar_Time;
-	good := try_parse_calender_time(str, *ct);
+	good := try_parse_calendar_time(str, *ct);
 	return ct, good;
 }
 jlfile_time_to_string :: time_to_string;
@@ -81,7 +81,7 @@ jlfile_time_to_string :: time_to_string;
 
 #scope_file;
 rune :: #type s64;
-try_parse_calender_time :: (str: string, to: *Calendar_Time=null, to_apollo_time: *Apollo_Time=null) -> bool {
+try_parse_calendar_time :: (str: string, to: *Calendar_Time=null, to_apollo_time: *Apollo_Time=null) -> bool {
 	if str.count < 24 return false;
 	if str[0]  != "[" return false;
 	if str[23] != "]" return false;

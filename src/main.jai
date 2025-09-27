@@ -148,17 +148,12 @@ main :: () {
 	info.all = jlfile.records.count;
 
 	now := to_calendar(current_time_consensus(), .LOCAL);
-	today := now;
-	today.hour, today.minute, today.second, today.millisecond = 12,0,0,0; // TODO: I really don't understand why but this works.
-	today_at := calendar_to_apollo(today);
-	tomorrow := get_tomorrow(today);
-	tomorrow_at := calendar_to_apollo(tomorrow);
 
 	if runinfo.filter_specified {
 		for * jlfile.records {
 			_, title_line, _ := split_from_left(it.content, #char "\n");
 			match := true;
-			if runinfo.only_today && (it.apollo_time <= today_at || it.apollo_time >= tomorrow_at) {
+			if runinfo.only_today && !is_same_day(it.time, now) {
 				match = false;
 			}
 			if match for tag: tags {
@@ -169,6 +164,8 @@ main :: () {
 			}
 			if match {
 				array_add(*matched_records, it);
+
+				print("matched time: %\n - from %\n", it.time, it.content);
 			} else {
 				it.exclude = true;
 			}
@@ -176,6 +173,7 @@ main :: () {
 	} else {
 		for * jlfile.records array_add(*matched_records, it);
 	}
+
 	bubble_sort(array_view(matched_records, 0), (a: *JlRecord, b: *JlRecord) -> int {
 		return ifx a.apollo_time > b.apollo_time then -1 else 1;
 	});

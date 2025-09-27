@@ -21,6 +21,12 @@ is_date_valid :: (year:int, month:int, day:int) -> bool {
 
 	return true;
 }
+is_same_day :: (a: Calendar_Time, b: Calendar_Time) -> bool {
+	return
+	a.year == b.year
+	&& a.month_starting_at_0 == b.month_starting_at_0
+	&& a.day_of_month_starting_at_0 == b.day_of_month_starting_at_0;
+}
 
 is_time_valid :: (year:int, month:int, day:int) -> bool {
 	if month < 0 || month > 11 return false;
