@@ -154,6 +154,8 @@ main :: () {
 
 	now := to_calendar(current_time_consensus(), .LOCAL);
 
+	timer_filter_and_sort : MiniTimer;
+	#if DEBUG timer_filter_and_sort = timer_begin("Filter and Sort");
 	if runinfo.filter_specified {
 		for * jlfile.records {
 			_, title_line, _ := split_from_left(it.content, #char "\n");
@@ -180,6 +182,7 @@ main :: () {
 	bubble_sort(array_view(matched_records, 0), (a: *JlRecord, b: *JlRecord) -> int {
 		return ifx a.apollo_time > b.apollo_time then -1 else 1;
 	});
+	#if DEBUG timer_end(*timer_filter_and_sort);
 
 	if #complete runinfo.operation == {
 		case .Edit;
