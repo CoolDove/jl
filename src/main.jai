@@ -92,13 +92,13 @@ main :: () {
 		} else if it == "--help" || it == "-help" || it == "--h" || it == "-h" {
 			print(HELP_STRING);
 			exit(0);
-		} else if begins_with(it, "--decrypt") {
+		} else if it == "--decrypt" {
 			operation_decrypt();// pre pass
 			exit(0);
-		} else if begins_with(it, "--encrypt-save-key") {
+		} else if it == "--encrypt-save-key" {
 			operation_encrypt(true);// pre pass
 			exit(0);
-		} else if begins_with(it, "--encrypt") {
+		} else if it == "--encrypt" {
 			operation_encrypt(false);// pre pass
 			exit(0);
 		} else {
@@ -414,7 +414,6 @@ operation_encrypt :: (save_key: bool) {
 		return;
 	}
 	if is_data_jl_encrypted(xx filecontent) {
-		print("why don't you go here\n");
 		print(#string DONE
 File is already encrypted, if you want to change the password, you 
 can --decrypt it first, then encrypt again.
