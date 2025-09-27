@@ -1,14 +1,14 @@
-region_timer :: (tag:string="") #expand {
-	begin := current_time_consensus();
-	`defer {
-		end := current_time_consensus();
-		d := end - begin;
-		milliseconds := (d/1_000_000_000_000).low;
-		if milliseconds == 0 {
-			us := (d/1_000_000_000).low;
-			print("%: % us.\n", tag, us);
-		} else {
-			print("%: % ms.\n", tag, milliseconds);
+region_timer :: (tag:string="", $debug_only:=true) #expand {
+	#if debug_only && DEBUG {
+		begin := current_time_consensus();
+		`defer {
+			end := current_time_consensus();
+			d := end - begin;
+			#if debug_only {
+				print_time_duration(tprint("DEBUG-ONLY:%", tag), d);
+			} else {
+				print_time_duration(tag, d);
+			}
 		}
 	}
 }
@@ -17,18 +17,12 @@ MiniTimer :: struct {
 	time : Apollo_Time;
 	tag  : string;
 }
-timer_begin :: inline (tag: string) -> MiniTimer {
+timer_begin :: (tag: string) -> MiniTimer #expand {
 	return .{current_time_consensus(), tag};
 }
 timer_end :: inline (t: *MiniTimer) {
 	d := current_time_consensus() - t.time;
-	milliseconds := (d/1_000_000_000_000).low;
-	if milliseconds == 0 {
-		us := (d/1_000_000_000).low;
-		print("%: % us.\n", t.tag, us);
-	} else {
-		print("%: % ms.\n", t.tag, milliseconds);
-	}
+	print_time_duration(t.tag, d);
 }
 
 string_by_line :: (s: *string, code: Code, flags: For_Flags) #expand {
@@ -83,3 +77,13 @@ find_substrings :: (s: string, substring: string, allocator:=context.allocator) 
 	return results;
 }
 
+#scope_file;
+print_time_duration :: (tag: string, d: Apollo_Time) {
+	milliseconds := (d/1_000_000_000_000).low;
+	if milliseconds == 0 {
+		us := (d/1_000_000_000).low;
+		print("%: % us.\n", tag, us);
+	} else {
+		print("%: % ms.\n", tag, milliseconds);
+	}
+}
