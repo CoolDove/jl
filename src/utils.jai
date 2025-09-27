@@ -51,7 +51,21 @@ string_by_line :: (s: *string, code: Code, flags: For_Flags) #expand {
 	}
 }
 
-find_substring :: (s: string, substring: string, allocator:=context.allocator) -> []s64 {
+find_substring :: (s: string, substring: string) -> s64 {
+	point :s64= 0;
+	for i: 0..s.count-1 {
+		if s[i] == substring[point] {
+			point += 1;
+			if point == substring.count {
+				return i - point + 1;
+			}
+		} else {
+			point = 0;
+		}
+	}
+	return -1;
+}
+find_substrings :: (s: string, substring: string, allocator:=context.allocator) -> []s64 {
 	push_allocator(allocator);
 	point :s64= 0;
 	results :[..]s64;

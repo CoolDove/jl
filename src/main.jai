@@ -164,7 +164,7 @@ main :: () {
 				match = false;
 			}
 			if match for tag: tags {
-				if !contains(title_line, tag) {
+				if find_substring(title_line, tag) < 0 {
 					match = false;
 					break;
 				}
@@ -431,26 +431,28 @@ sha256 :: (str: string) -> [32]u8 {
 JLMAGIC :[16]u8: xx "VMWVWWWVWWVMVWMM";
 
 HELP_STRING :: #string DONE
-`jl` is a journaling tool inspired by `jrnl`.
-To use this, you should have these setups.
+Hello, `jl` is a lightweight journaling tool inspired by `jrnl`.
 
-- `JLEDITOR` or `EDITOR` in environment.
-
-- `JLDEFAULTFILE` in environment, specifying the file path. This 
+Before using `jl`, make sure you have:
+1. `JLEDITOR` or `EDITOR` in environment.
+2. `JLDEFAULTFILE` in environment, specifying the file path. This 
 is optional. By default the file will be in the user folder. You 
-can see that path in the first line. And this is also temporary,
-we will have a config file later. So that you can have multiple files.
+can see that path in the first line of output. And this is just a
+temporary solution, we will have a config file eventually. So 
+that we can have multiple files.
 
 Currently we only support tag filtering.
-- jl @idea # search for records with @idea tagged in its title line.
+- jl @idea # Search for records tagged with @idea in the title line.
+And there's a special filtering:
+- jl -today|-t # Match records in today.
 
 And operations you have:
-- jl --edit # this is the default operation.
-- jl --print
-- jl --tags # TODO yet
+- jl --edit|--e # This is the default operation.
+- jl --print|--p # Just print all the content.
+- jl --tags|--t # Print all the tags contained.
 
 Or you can just type:
-- jl # to create a new record.
+- jl # To create a new record.
 DONE
 
 is_data_jl_encrypted :: inline (data: []u8) -> bool {
