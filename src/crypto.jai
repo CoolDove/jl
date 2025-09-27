@@ -1,4 +1,5 @@
 jl_encrypt :: (plain: []u8, key: [32]u8, allocator:=context.allocator) -> ([]u8, bool) {
+	push_allocator(allocator);
 	ctx := EVP_CIPHER_CTX_new(); defer EVP_CIPHER_CTX_free(ctx);
 	EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), null, key.data, IV.data);
 
@@ -18,6 +19,7 @@ jl_encrypt :: (plain: []u8, key: [32]u8, allocator:=context.allocator) -> ([]u8,
 }
 
 jl_decrypt :: (cipher: []u8, key: [32]u8, allocator:=context.allocator) -> ([]u8, bool) {
+	push_allocator(allocator);
 	ctx := EVP_CIPHER_CTX_new(); defer EVP_CIPHER_CTX_free(ctx);
 	EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), null, key.data, IV.data);
 	buffer := NewArray(cipher.count * 4, u8, false);

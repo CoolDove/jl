@@ -133,7 +133,7 @@ main :: () {
 			print("Password:");
 			password_sha256 = sha256(read_pswd(allocator=temp));
 		}
-		cipher := get_encrypted_jlfile_cipher(xx file_content); // slice(file_content, JLMAGIC.count, file_content.count-JLMAGIC.count);
+		cipher := get_encrypted_jlfile_cipher(xx file_content);
 		data, decrypt_ok := jl_decrypt(xx cipher, password_sha256);
 		if !decrypt_ok {
 			print("Wrong password.");

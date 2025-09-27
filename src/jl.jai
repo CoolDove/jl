@@ -1,7 +1,7 @@
 JlRecord :: struct {
 	time : Calendar_Time;
 	apollo_time : Apollo_Time;
-	content : string;
+	content : string; // Reallocated with default allocator, will be freed in `jlfile_release()`.
 	// runtime
 	exclude : bool;
 }
