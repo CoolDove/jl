@@ -131,21 +131,29 @@ try_parse_calender_time :: (str: string, to: *Calendar_Time=null, to_apollo_time
 	ct.year = xx int_since(1);
 	ct.month_starting_at_0 = xx (int_since(6)-1);
 	ct.day_of_month_starting_at_0 = xx (int_since(9)-1);
-	ct.hour = xx int_since(12);
+	ct.hour = xx (int_since(12) % 12);
 	ct.minute = xx int_since(15);
 	ct.second = xx int_since(18);
 	if s == "PM" || s == "pm" ct.hour += 12;
 
-	// TODO: Maybe i can optimize this, and handle the error.
-	apl_time, time_valid := jlfile_calendar_to_apollo(ct);
+	time_valid := is_date_valid(ct.year, ct.month_starting_at_0, ct.day_of_month_starting_at_0);
 	if !time_valid {
 		log_error("\e[35mInvalid time found:\e[39m %\n", jlfile_time_to_string(ct));
-	}
-	if to_apollo_time != null {
-		to_apollo_time.* = apl_time;
+	} else {
+		ct.day_of_week_starting_at_0 = xx get_weekday(ct.year, ct.month_starting_at_0, ct.day_of_month_starting_at_0);
 	}
 	if to != null {
-		to.* = to_calendar(apl_time);// to reset the weekday
+		to.* = ct;
+	}
+	if to_apollo_time != null {
+		to_apollo_time.* = jlfile_calendar_to_apollo(ct);
+	}
+
+	#if DEBUG {
+		apl_time_old, time_valid_old := jlfile_calendar_to_apollo(ct);
+		msg :: "Time processing inconsistant with old version.";
+		assert(time_valid == time_valid_old, msg);
+		if to_apollo_time != null assert(apl_time_old == to_apollo_time.*, msg);
 	}
 	return true;
 }

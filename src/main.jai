@@ -1,7 +1,9 @@
 #load "args_reader.jai";
+#load "utils.jai";
 #load "config.jai";
 #load "console.jai";
 #load "crypto.jai";
+#load "time.jai";
 #load "jl.jai";
 
 process_edit : Process;
@@ -149,12 +151,14 @@ main :: () {
 	today := now;
 	today.hour, today.minute, today.second, today.millisecond = 12,0,0,0; // TODO: I really don't understand why but this works.
 	today_at := calendar_to_apollo(today);
+	tomorrow := get_tomorrow(today);
+	tomorrow_at := calendar_to_apollo(tomorrow);
 
 	if runinfo.filter_specified {
 		for * jlfile.records {
 			_, title_line, _ := split_from_left(it.content, #char "\n");
 			match := true;
-			if runinfo.only_today && (it.apollo_time <= today_at) {
+			if runinfo.only_today && (it.apollo_time <= today_at || it.apollo_time >= tomorrow_at) {
 				match = false;
 			}
 			if match for tag: tags {
@@ -448,3 +452,18 @@ get_encrypted_jlfile_cipher :: inline (data: []u8) -> []u8 {
 }
 
 read_pswd :: #bake_arguments read_stdin(invisible=true);
+
+#run {
+	#import "Compiler";
+	bo := get_build_options();
+	debug := bo.null_pointer_check; // Check if you passed a `-release` when build.
+	print("===\n");
+	print("Building...\n");
+	if debug {
+		add_build_string("DEBUG :: true;", -1);
+		print("Build the program in DEBUG mode.\n");
+	} else {
+		add_build_string("DEBUG :: false;", -1);
+	}
+	print("===\n");
+}
