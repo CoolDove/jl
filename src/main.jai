@@ -164,8 +164,6 @@ main :: () {
 			}
 			if match {
 				array_add(*matched_records, it);
-
-				print("matched time: %\n - from %\n", it.time, it.content);
 			} else {
 				it.exclude = true;
 			}

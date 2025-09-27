@@ -12,20 +12,11 @@ JlFile :: struct {
 jlfile_parse :: (src: string, allocator:=context.allocator) -> JlFile {
 	push_allocator(allocator);
 
-	handler :Text_File_Handler=.{
-		comment_character = 0, // Dont support commenting.
-		do_version_number = false, // Dont check the version number on the file.
-		auto_skip_blank_lines = false,
-	};
-	defer deinit(*handler);
-
 	records : [..]JlRecord;
 	buffer : String_Builder;
 
 	init_string_builder(*buffer);
 	defer free_buffers(*buffer);
-
-	start_from_memory(*handler, "jlfile", "???", src);
 
 	SUBMIT_CURRENT :: () #expand {
 		if builder_string_length(*buffer) > 0 {
@@ -45,12 +36,12 @@ jlfile_parse :: (src: string, allocator:=context.allocator) -> JlFile {
 
 	time : Calendar_Time;
 	apollo_time : Apollo_Time;
-	while !handler.failed {
-		line, found := consume_next_line(*handler);
-		if !found break;
+	source := src;
+
+	for:string_by_line line, idx:source {
 		next_time : Calendar_Time;
 		next_apollo_time : Apollo_Time;
-		if trim(line) != "" && line[0] == #char "[" && try_parse_calendar_time(line, *next_time, *next_apollo_time) {
+		if line != "" && trim(line) != "" && line[0] == #char "[" && try_parse_calendar_time(line, *next_time, *next_apollo_time) {
 			// ** upload current
 			SUBMIT_CURRENT();
 			time = next_time;
