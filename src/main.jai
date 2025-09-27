@@ -307,11 +307,66 @@ operation_print :: () {
 }
 
 operation_list_tags :: () {
-	// TODO:
-	print("Haven't done yet. Here's all the titles:\n");
+	next_tags :: (line: *string, tag: *string) -> bool {
+		if line.count <= 0 return false;
+		open_at := -1;
+		for s, i :line.* {
+			if open_at > -1 {
+				complete := false;
+				if (s >= "a" && s <= "z") || (i > open_at && (s >= "0" && s <= "9" || s == "_")) {
+					if i == line.count-1 {
+						defer line.* = slice(line.*, line.count-1, 0);
+						tag.* = slice(line.*, open_at, line.count - open_at);
+						return true;
+					}
+				} else if s == " " || s == "\t" || s == "@" {
+					defer line.* = slice(line.*, i, line.count-1);
+					tag.* = slice(line.*, open_at, i - open_at);
+					return true;
+				}
+			} else {
+				if s == "@" {
+					open_at = i;
+				}
+			}
+		}
+		return false;
+	}
+
+	#import "Hash_Table";
+	table : Table(string, int);
+	init(*table); defer deinit(*table);
+
+	longest_tag_length : int;
 	for matched_records {
-		_, left, _ := split_from_left(it.content, #char "\n");
-		print("%\n", left);
+		_, title, _ := split_from_left(it.content, #char "\n");
+		tag : string;
+		while next_tags(*title, *tag) {
+			count, added := find_or_add(*table, tag);
+			count.* += 1;
+			if added {
+				longest_tag_length = max(tag.count, longest_tag_length);
+			}
+		}
+	}
+	print("Tags:\n");
+	spaces :: "                                              ";
+
+	TagInfo :: struct { tag: string; count: int; }
+	tag_infos := NewArray(table.count, TagInfo);
+	defer array_free(tag_infos);
+	tag_infos.count = 0;
+	for table {
+		tag_infos.count += 1;
+		tag_infos[tag_infos.count-1] = .{it_index, it};
+	}
+	bubble_sort(tag_infos, (a: TagInfo, b: TagInfo) -> int {
+		return ifx a.count > b.count then -1 else 1;
+	});
+	for tag_infos {
+		spacing := slice(spaces, 0, min(spaces.count, longest_tag_length+1-it.tag.count));
+		print("%", it.tag);
+		print("%: %\n", spacing, it.count);
 	}
 }
 
