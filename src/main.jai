@@ -210,6 +210,10 @@ operation_edit :: () {
 
 	// ** run the editor
 	edit_file := get_jl_filepath("~edit.jl"); defer free(edit_file.data);
+	if file_exists(edit_file) {
+		log_error("File '%' exists, there's probably another jl process editing it. If there isn't, you can manually delete it.", edit_file);
+		return;
+	}
 	{// ** create the edit file
 		edfile := file_open(edit_file, for_writing=true, keep_existing_content=false);
 		defer file_close(*edfile);
@@ -225,6 +229,7 @@ operation_edit :: () {
 			info.loaded = matched_records.count;
 		}
 	}
+
 	tempfile_before_edit := read_entire_file(edit_file); defer free(tempfile_before_edit);
 	before_sha := sha256(tempfile_before_edit);
 
@@ -243,6 +248,8 @@ operation_edit :: () {
 
 	// ** save the file
 	editted_jlfile_raw := read_entire_file(edit_file,,temp);
+	file_delete(edit_file); // delete the temporary edit file
+
 	editted_jlfile := jlfile_parse(editted_jlfile_raw);
 	defer jlfile_release(*editted_jlfile);
 
@@ -256,7 +263,6 @@ operation_edit :: () {
 	}
 
 	info.editted = editted_jlfile.records.count;
-	defer file_delete(edit_file);
 
 	if info.editted == 0 {
 		log("Found 0 record, exit without saving...");
