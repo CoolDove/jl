@@ -4,7 +4,30 @@ region_timer :: (tag:string="") #expand {
 		end := current_time_consensus();
 		d := end - begin;
 		milliseconds := (d/1_000_000_000_000).low;
-		print("%: % ms.\n", tag, milliseconds);
+		if milliseconds == 0 {
+			us := (d/1_000_000_000).low;
+			print("%: % us.\n", tag, us);
+		} else {
+			print("%: % ms.\n", tag, milliseconds);
+		}
+	}
+}
+
+MiniTimer :: struct {
+	time : Apollo_Time;
+	tag  : string;
+}
+timer_begin :: inline (tag: string) -> MiniTimer {
+	return .{current_time_consensus(), tag};
+}
+timer_end :: inline (t: *MiniTimer) {
+	d := current_time_consensus() - t.time;
+	milliseconds := (d/1_000_000_000_000).low;
+	if milliseconds == 0 {
+		us := (d/1_000_000_000).low;
+		print("%: % us.\n", t.tag, us);
+	} else {
+		print("%: % ms.\n", t.tag, milliseconds);
 	}
 }
 

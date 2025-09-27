@@ -125,6 +125,7 @@ main :: () {
 
 	content : string;
 	if is_data_jl_encrypted(xx file_content) { // load encrypted file
+		#if DEBUG region_timer("Decrypt");
 		using runinfo;
 		file_is_encrypted = true;
 
@@ -144,8 +145,12 @@ main :: () {
 		content = file_content;
 	}
 
+	timer_parse := timer_begin("Parse");
+
 	jlfile = jlfile_parse(content); defer jlfile_release(*jlfile);
 	info.all = jlfile.records.count;
+
+	#if DEBUG timer_end(*timer_parse);
 
 	now := to_calendar(current_time_consensus(), .LOCAL);
 
