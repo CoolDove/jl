@@ -96,6 +96,9 @@ main :: () {
 		} else if it == "--help" || it == "-help" || it == "--h" || it == "-h" {
 			print(HELP_STRING);
 			exit(0);
+		} else if it == "--check" {// check password, in case i forget
+			operation_check_password();
+			exit(0);
 		} else if it == "--decrypt" {
 			operation_decrypt();// pre pass
 			exit(0);
@@ -456,6 +459,40 @@ DONE);
 	}
 }
 
+operation_check_password :: () {
+	using runinfo;
+	filecontent, read_ok := read_entire_file(target_file);
+	if !read_ok {
+		print("Failed to read target file: %.", target_file);
+		return;
+	}
+	if !is_data_jl_encrypted(xx filecontent) {
+		print("File is plaintext, no password.\n");
+		return;
+	}
+	
+	stored_key: [32]u8;
+	if try_get_stored_key(*stored_key) {
+		print("Password:");
+		input_key := sha256(read_pswd(allocator=temp));
+		correct := true;
+		for 0..31 {
+			if stored_key[it] != input_key[it] {
+				correct = false;
+				break;
+			}
+		}
+		if correct {
+			print("Password correct!\n");
+		} else {
+			print("\e[35mPassword incorrect!\e[39m\n");
+		}
+	} else {
+		print("Password is not stored, no need to check.");
+		return;
+	}
+}
+
 file_exists :: (path: string) -> bool {
 	f, ok := file_open(path); defer file_close(*f);
 	return ok;
@@ -522,6 +559,11 @@ Or you can just type:
 - jl # To create a new record.
 If you want to edit all the records:
 - jl --e
+
+---
+Other stuff:
+- jl --check # To check if you still remember the stored password.
+
 DONE
 
 is_data_jl_encrypted :: inline (data: []u8) -> bool {
