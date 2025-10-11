@@ -24,6 +24,7 @@ runinfo :struct {
 	filter_specified    : bool;
 	operation_specified : bool;
 	only_today          : bool;
+	recent              : bool;
 
 	// password : string;
 	password_sha256 : [32]u8;
@@ -79,6 +80,9 @@ main :: () {
 			runinfo.filter_specified = true;
 		} else if it == "-today" || it == "-t" {// @Temporary: We will have a better time filtering.
 			runinfo.only_today = true;
+			runinfo.filter_specified = true;
+		} else if it == "-recent" || it == "-r" {// @Temporary: We will have a better time filtering.
+			runinfo.recent = true;
 			runinfo.filter_specified = true;
 		} else if it == "--e" || it == "--edit" {
 			runinfo.operation = .Edit;
@@ -160,7 +164,15 @@ main :: () {
 		for * jlfile.records {
 			_, title_line, _ := split_from_left(it.content, #char "\n");
 			match := true;
-			if runinfo.only_today && !is_same_day(it.time, now) {
+			if runinfo.recent {
+				now_date := date_from_calendar(now);
+				record_date := date_from_calendar(it.time);
+				#import "Math";
+				distance := abs(total_days(now_date) - total_days(record_date));
+				if distance > 3 {
+					match = false;
+				}
+			} else if runinfo.only_today && !is_same_day(it.time, now) {
 				match = false;
 			}
 			if match for tag: tags {
@@ -497,16 +509,19 @@ that we can have multiple files.
 
 Currently we only support tag filtering.
 - jl @idea # Search for records tagged with @idea in the title line.
-And there's a special filtering:
-- jl -today|-t # Match records in today.
+And there's two special time filtering:
+- jl -today|-t  # Match records in today.
+- jl -recent|-r # Match records from 3 days ago to 3 days later.
 
 And operations you have:
-- jl --edit|--e # This is the default operation.
+- jl --edit|--e  # This is the default operation.
 - jl --print|--p # Just print all the content.
-- jl --tags|--t # Print all the tags contained.
+- jl --tags|--t  # Print all the tags contained.
 
 Or you can just type:
 - jl # To create a new record.
+If you want to edit all the records:
+- jl --e
 DONE
 
 is_data_jl_encrypted :: inline (data: []u8) -> bool {
@@ -520,6 +535,17 @@ get_encrypted_jlfile_cipher :: inline (data: []u8) -> []u8 {
 read_pswd :: #bake_arguments read_stdin(invisible=true);
 
 #run {
+	#if false {
+		// ** test date stuff
+		total_days(.{2025, 11, 3});
+		now := to_calendar(current_time_consensus(), .LOCAL);
+		today := Date.{ now.year, now.month_starting_at_0, now.day_of_month_starting_at_0 };
+		print("Today: %\n", today);
+		print("Yesterday: %\n", date_offset(today, -1));
+		print("11d before: %\n", date_offset(today, -11));
+		print("12d before: %\n", date_offset(today, -12));
+	}
+
 	#import "Compiler";
 	bo := get_build_options();
 	debug := bo.null_pointer_check; // Check if you passed a `-release` when build.

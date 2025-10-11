@@ -59,22 +59,35 @@ find_substring :: (s: string, substring: string) -> s64 {
 	}
 	return -1;
 }
-find_substrings :: (s: string, substring: string, allocator:=context.allocator) -> []s64 {
-	push_allocator(allocator);
+
+SubstrIte :: struct {
+	s  : string;
+	sub: string;
+}
+substr_ite :: (s: string, substr: string) -> SubstrIte {
+	return .{ s, substr };
+}
+for_expansion :: (ite: *SubstrIte, code: Code, flags: For_Flags) #expand {
+	using ite;
 	point :s64= 0;
-	results :[..]s64;
+	idx := 0;
 	for i: 0..s.count-1 {
-		if s[i] == substring[point] {
+		if s[i] == sub[point] {
 			point += 1;
-			if point == substring.count {
-				array_add(*results, i - point + 1);
+			if point == sub.count {
+				// The `it` is the position of the match starts. Cuz returning
+				// the substring that you already know doesn't make sense.
+				`it := i-point+1;
+				`it_index := idx;
+				`it_match := slice(s, i-point+1, sub.count);
+				#insert code;
 				point = 0;
+				idx += 1;
 			}
 		} else {
 			point = 0;
 		}
 	}
-	return results;
 }
 
 #scope_file;
