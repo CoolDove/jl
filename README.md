@@ -49,7 +49,8 @@ Create a new record, and edit with your editor.
 - edit: `jl @jai --edit|--e`
 
 Edit records tagged with @jl, with your own text editor. This is the 
-default operation, `jl @jai` does the same thing.
+default operation, `jl @jai` does the same thing. You can also delete 
+records during editting.
 
 - print: `jl @jai @syntax --print|--p`
 
