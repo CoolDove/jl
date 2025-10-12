@@ -673,20 +673,21 @@ sha256 :: (str: string) -> [32]u8 {
 
 JLMAGIC :[16]u8: xx "VMWVWWWVWWVMVWMM";
 
+
 HELP_STRING :: #string DONE
 Hello, `jl` is a lightweight journaling tool inspired by `jrnl`.
 
 Before using `jl`, make sure you have:
 1. `JLEDITOR` or `EDITOR` in environment.
-2. `JLDEFAULTFILE` in environment, specifying the file path. This 
-is optional. By default the file will be in the user folder. You 
-can see that path in the first line of output. And this is just a
-temporary solution, we will have a config file eventually. So 
-that we can have multiple files.
+2. `JLDEFAULTFILE` in environment, specifying the file path.
 
-Currently we only support tag filtering.
-- jl @idea # Search for records tagged with @idea in the title line.
-And there's two special time filtering:
+Filter records by tags:
+- jl @idea      # Search for records tagged with @idea in the title line.
+- jl @idea @jai # For @idea "and" @jai, "or" is not supported now.
+
+Filter records by date:
+- jl 7d         # Match records from 7 days ago to today.
+- jl 2d:+6w     # Match records from 2 days ago to 6 weeks later.
 - jl -today|-t  # Match records in today.
 - jl -recent|-r # Match records from 3 days ago to 3 days later.
 
@@ -694,16 +695,13 @@ And operations you have:
 - jl --edit|--e  # This is the default operation.
 - jl --print|--p # Just print all the content.
 - jl --tags|--t  # Print all the tags contained.
+- jl             # Create a new record.
 
-Or you can just type:
-- jl # To create a new record.
-If you want to edit all the records:
-- jl --e
-
----
-Other stuff:
-- jl --check # To check if you still remember the stored password.
-
+Encryption:
+- jl --encrypt          # To encrypt current jl file.
+- jl --encrypt-save-key # To encrypt and save the key in the computer.
+- jl --decrypt          # Decrypt the encrypted jl file.
+- jl --check            # To make sure you are still remembering the correct password.
 DONE
 
 is_data_jl_encrypted :: inline (data: []u8) -> bool {

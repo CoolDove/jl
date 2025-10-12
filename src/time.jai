@@ -5,6 +5,9 @@ Date :: struct {
 	day:int;
 }
 
+get_weekday :: (using date: Date) -> int #no_context {
+	return get_weekday(year, month, day);
+}
 get_weekday :: (year:int, month:int, day:int) -> int #no_context {
 	t := int.[0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4];
 	if month < 2 {
@@ -13,22 +16,26 @@ get_weekday :: (year:int, month:int, day:int) -> int #no_context {
 	day += 1;
 	return (year + year/4 - year/100 + year/400 + t[month] + day) % 7;
 }
+
+is_date_valid :: inline (using date: Date) -> bool {
+	return is_date_valid(year, month, day);
+}
 is_date_valid :: (year:int, month:int, day:int) -> bool {
 	if month < 0 || month > 11 return false;
 	if day < 0 || day >= days_in_month(year, month) return false;
 	return true;
+}
+is_same_day :: (a: Date, b: Date) -> bool #no_context {
+	return
+	a.year == b.year
+	&& a.month == b.month
+	&& a.day == b.day;
 }
 is_same_day :: (a: Calendar_Time, b: Calendar_Time) -> bool #no_context {
 	return
 	a.year == b.year
 	&& a.month_starting_at_0 == b.month_starting_at_0
 	&& a.day_of_month_starting_at_0 == b.day_of_month_starting_at_0;
-}
-
-is_time_valid :: (year:int, month:int, day:int) -> bool {
-	if month < 0 || month > 11 return false;
-	if day < 0 || day >= days_in_month(year, month) return false;
-	return true;
 }
 
 is_leap_year :: (year: int) -> bool #no_context {
