@@ -67,19 +67,20 @@ Print the help document.
 # Encrypt
 - `jl --encrypt`
 
-To encrypt the jl file with a password. After encrypted you will need to 
-input the password when you want to modify the records.
+To encrypt the jl file with a password. You will need to input the 
+password when you want to modify a encrypted jl file.
 
 - `jl --encrypt-save-key`
 
-To encrypt, and save the key in your computer. You don't have to input 
-the password everytime you write something. Only do this when you're 
-using your own computer.
+To encrypt, and save the key in your computer. You won't have to input 
+the password everytime. Only do this when you're using your own computer.
 
 - `jl --decrypt`
 
 To decrypt the encrypted jl file. If you want to change the password, you 
-can do this and encrypt again using your new password.
+can do this and encrypt again using your new password. If you got an 
+encrypted jl file but the key is not stored, you can also decrypt it then 
+--encrypt-save-key to reset the password and save the key.
 
 - `jl --check`
 
