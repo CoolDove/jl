@@ -25,6 +25,12 @@ runinfo :struct {
 	operation_specified : bool;
 	only_today          : bool;
 	recent              : bool;
+	time_filter         : struct {
+		activate   : bool;
+		only_small : bool;
+		small      : Date;
+		big        : Date;
+	};
 
 	// password : string;
 	password_sha256 : [32]u8;
@@ -40,6 +46,9 @@ runinfo :struct {
 	}
 }
 
+now : Calendar_Time;
+now_date : Date;
+
 main :: () {
 	#if false { // test read input
 		print("Input: ");
@@ -52,6 +61,8 @@ main :: () {
 		assert(test_encryption(*secret));
 		print("secret:\n%\n", secret);
 	}
+	now = to_calendar(current_time_consensus(), .LOCAL);
+	now_date = date_from_calendar(now);
 
 	init_console();
 
@@ -108,10 +119,20 @@ main :: () {
 		} else if it == "--encrypt" {
 			operation_encrypt(false);// pre pass
 			exit(0);
+		} else if try_parse_time_filter_group(it, *runinfo.time_filter.small, *runinfo.time_filter.big, *runinfo.time_filter.only_small) {
+			runinfo.time_filter.activate = true;
+			runinfo.filter_specified = true;
 		} else {
 			print("Unknown arguments.\n");
 			exit(0);
 		}
+	}
+
+	#run {
+		print("TEST timer filter\n");
+		ok, small, big, consume := parse_time_filter_group("12d:+1m");
+		if ok print("result: [% - %], consumed: %\n", small, big, consume);
+		else print("failed to parse\n");
 	}
 
 	// ** load file
@@ -159,16 +180,35 @@ main :: () {
 
 	#if DEBUG timer_end(*timer_parse);
 
-	now := to_calendar(current_time_consensus(), .LOCAL);
-
 	timer_filter_and_sort : MiniTimer;
 	#if DEBUG timer_filter_and_sort = timer_begin("Filter and Sort");
 	if runinfo.filter_specified {
+		time_filter_begin : Calendar_Time;
+		time_filter_end   : Calendar_Time;
+		time_filter_begin_apollo : Apollo_Time;
+		time_filter_end_apollo   : Apollo_Time;
+		if runinfo.time_filter.activate {
+			using runinfo.time_filter;
+			time_filter_begin = date_to_calendar(small);
+			if only_small {
+				time_filter_end = now;
+			} else {
+				time_filter_end = date_to_calendar(big);
+			}
+			time_filter_end.hour = 23;
+			time_filter_end.minute = 59;
+			time_filter_end.second = 59;
+			time_filter_begin_apollo = calendar_to_apollo(time_filter_begin);
+			time_filter_end_apollo = calendar_to_apollo(time_filter_end);
+		}
 		for * jlfile.records {
 			_, title_line, _ := split_from_left(it.content, #char "\n");
 			match := true;
-			if runinfo.recent {
-				now_date := date_from_calendar(now);
+			if runinfo.time_filter.activate {
+				if it.apollo_time < time_filter_begin_apollo || it.apollo_time > time_filter_end_apollo {
+					match = false;
+				}
+			} else if runinfo.recent {
 				record_date := date_from_calendar(it.time);
 				#import "Math";
 				distance := abs(total_days(now_date) - total_days(record_date));
@@ -207,6 +247,113 @@ main :: () {
 		case .ListTags;
 			operation_list_tags();
 	}
+}
+
+parse_time_filter :: (s: string) -> (ok:bool, dt:Date, consume:int) {
+	str := s;
+
+	value : int;
+	unit  : u8;
+	consume : int;
+	ct : Calendar_Time;
+	future : bool;
+
+	ok : bool;
+
+	if str[0] == "+" {
+		str.data += 1;
+		str.count -= 1;
+		consume += 1;
+		future = true;
+	}
+
+	value, ok, str = string_to_int(str);
+	consume += s.count - str.count;
+	if !ok return false, .{}, 0;
+	if str.count == 0 return false, .{}, 0;
+	unit = str[0];
+	consume += 1;
+	dt := now_date;
+	days := total_days(dt);
+	if unit == "d" {
+		if future {
+			days += value;
+		} else {
+			days -= value;
+		}
+		return true, date_from_total_days(days), consume;
+	} else if unit == "w" {
+		if future {
+			days += value * 7;
+		} else {
+			days -= value * 7;
+		}
+		return true, date_from_total_days(days), consume;
+	} else if unit == "m" {
+		dt.day = 0;
+		for 0..value-1 {
+			if future {
+				if dt.month == 11 {
+					dt.year += 1;
+					dt.month = 0;
+				} else {
+					dt.month += 1;
+				}
+			} else {
+				if dt.month == 0 {
+					dt.year -= 1;
+					dt.month = 11;
+				} else {
+					dt.month -= 1;
+				}
+			}
+		}
+		return true, dt, consume;
+	} else if unit == "y" {
+		dt.day = 0;
+		dt.month = 0;
+		if future {
+			dt.year += value;
+		} else {
+			dt.year -= value;
+		}
+		return true, dt, consume;
+	} else {
+		return false, .{}, 0;
+	}
+}
+try_parse_time_filter_group :: (s: string, small: *Date, big: *Date, only_small: *bool, sep:= #char ":") -> bool {
+	ok, _small, _big, _consume, _only_small := parse_time_filter_group(s, sep);
+	if !ok  return false;
+	if small      != null  small.*      = _small;
+	if big        != null  big.*        = _big;
+	if only_small != null  only_small.* = _only_small;
+	return true;
+}
+parse_time_filter_group :: (s: string, sep:= #char ":") -> (ok:bool, small:Date, big: Date, consume:int, only_small:bool) {
+	str := s;
+	step :: (d: int) #expand {
+		str.data += d;
+		str.count -= d;
+	}
+
+	left_ok, left_dt, left_consume := parse_time_filter(str);
+	if !left_ok return false, .{}, .{}, 0, false;
+	step(left_consume);
+
+	if str.count <= 0 || str[0] != sep  return true, left_dt, .{}, s.count - str.count, true;
+	step(1);
+
+	right_ok, right_dt, right_consume := parse_time_filter(str);
+	if !right_ok  return false, .{}, .{}, 0, false;
+	step(left_consume);
+
+	left_days := total_days(left_dt);
+	right_days := total_days(right_dt);
+
+	consume := s.count - str.count;
+	if left_days < right_days  return true, left_dt, right_dt, consume, false;
+	else  return true, right_dt, left_dt, consume, false;
 }
 
 operation_edit :: () {
@@ -586,6 +733,7 @@ read_pswd :: #bake_arguments read_stdin(invisible=true);
 		print("Yesterday: %\n", date_offset(today, -1));
 		print("11d before: %\n", date_offset(today, -11));
 		print("12d before: %\n", date_offset(today, -12));
+		print("1w before: %\n", date_offset(today, -7));
 	}
 
 	#import "Compiler";

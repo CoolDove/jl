@@ -73,6 +73,14 @@ total_days :: (date: Date) -> int {
 	return days + date.day;
 }
 
+date_to_calendar :: (dt: Date) -> Calendar_Time {
+	ct : Calendar_Time;
+	ct.year = xx dt.year;
+	ct.month_starting_at_0 = xx dt.month;
+	ct.day_of_month_starting_at_0 = xx dt.day;
+	ct.day_of_week_starting_at_0 = xx get_weekday(dt.year, dt.month, dt.day);
+	return ct;
+}
 date_from_calendar :: (ct: Calendar_Time) -> Date {
 	return Date.{ct.year, ct.month_starting_at_0, ct.day_of_month_starting_at_0};;
 }
