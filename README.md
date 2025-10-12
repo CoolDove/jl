@@ -20,9 +20,9 @@ specify multiple jl files, maybe a config file.
 
 Search for records tagged with @idea in the title line.
 
-- `jl @idea @proj_a`
+- `jl @idea @jai`
 
-Search for records tagged with both @idea **and** @proj_a in the title line.
+Search for records tagged with both @idea **and** @jai in the title line.
 
 ## By date
 - `jl 7d`
@@ -33,8 +33,9 @@ Match records from 7 days ago to today.
 
 Match records from 2 days ago to 6 weeks later.
 
-## Special
 - `jl -today|-t`
+
+Match records on today.
 
 - `jl -recent|-r`
 
@@ -58,9 +59,9 @@ Print matched records to the terminal.
 
 List all tags in matched records.
 
--- help: `jl --help|-help|--h|-h`
+- help: `jl --help|-help|--h|-h`
 
-Print the help document you're looking now.
+Print the help document.
 
 # Encrypt
 - `jl --encrypt`
@@ -81,6 +82,6 @@ can do this and encrypt again using your new password.
 
 - `jl --check`
 
-Require you to input the password and do nothing. I add this so that i can
-check if i'm still remembering the password. That makes me feel safe so i 
-personally very need this.
+Requires you to input the password and does nothing. I add this so that i 
+can check if i'm still remembering the password. That makes me feel safe 
+so i personally very need this.
