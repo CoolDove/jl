@@ -128,13 +128,6 @@ main :: () {
 		}
 	}
 
-	#run {
-		print("TEST timer filter\n");
-		ok, small, big, consume := parse_time_filter_group("12d:+1m");
-		if ok print("result: [% - %], consumed: %\n", small, big, consume);
-		else print("failed to parse\n");
-	}
-
 	// ** load file
 	file_content, file_read_good := read_entire_file(runinfo.target_file, log_errors=false);
 	defer if file_read_good free(file_content);
