@@ -27,7 +27,6 @@ runinfo :struct {
 	recent              : bool;
 	time_filter         : struct {
 		activate   : bool;
-		only_small : bool;
 		small      : Date;
 		big        : Date;
 	};
@@ -119,9 +118,12 @@ main :: () {
 		} else if it == "--encrypt" {
 			operation_encrypt(false);// pre pass
 			exit(0);
-		} else if try_parse_time_filter_group(it, *runinfo.time_filter.small, *runinfo.time_filter.big, *runinfo.time_filter.only_small) {
+		} else if try_parse_time_filter_group(it, *runinfo.time_filter.small, *runinfo.time_filter.big, "only_small") {
 			runinfo.time_filter.activate = true;
 			runinfo.filter_specified = true;
+			if only_small {
+				runinfo.time_filter.big = now_date;
+			}
 		} else {
 			print("Unknown arguments.\n");
 			exit(0);
@@ -183,11 +185,7 @@ main :: () {
 		if runinfo.time_filter.activate {
 			using runinfo.time_filter;
 			time_filter_begin = date_to_calendar(small);
-			if only_small {
-				time_filter_end = now;
-			} else {
-				time_filter_end = date_to_calendar(big);
-			}
+			time_filter_end = date_to_calendar(big);
 			time_filter_end.hour = 23;
 			time_filter_end.minute = 59;
 			time_filter_end.second = 59;
@@ -315,12 +313,14 @@ parse_time_filter :: (s: string) -> (ok:bool, dt:Date, consume:int) {
 		return false, .{}, 0;
 	}
 }
-try_parse_time_filter_group :: (s: string, small: *Date, big: *Date, only_small: *bool, sep:= #char ":") -> bool {
+
+try_parse_time_filter_group :: (s: string, small: *Date, big: *Date, $define_only_small_symbol: string="", sep:= #char ":") -> bool #expand {
 	ok, _small, _big, _consume, _only_small := parse_time_filter_group(s, sep);
 	if !ok  return false;
-	if small      != null  small.*      = _small;
-	if big        != null  big.*        = _big;
-	if only_small != null  only_small.* = _only_small;
+	if small != null  small.* = _small;
+	if big   != null  big.*   = _big;
+	// TODO: This is terrible, I do this just for fun. Change this to a cleaner version if continue working on this stuff.
+	#if define_only_small_symbol != "" #insert -> string { return tprint("`% := _only_small;", define_only_small_symbol); }
 	return true;
 }
 parse_time_filter_group :: (s: string, sep:= #char ":") -> (ok:bool, small:Date, big: Date, consume:int, only_small:bool) {
