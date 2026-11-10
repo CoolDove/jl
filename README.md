@@ -72,15 +72,28 @@ password when you want to modify a encrypted jl file.
 
 - `jl --encrypt-save-key`
 
-To encrypt, and save the key in your computer. You won't have to input 
-the password everytime. Only do this when you're using your own computer.
+To encrypt, and save the key. You won't have to input the password 
+everytime. Only do this when you're using your own computer. On Windows 
+the key is stored in Windows Credential Manager; on other platforms it is 
+stored in a key file.
+
+- `jl --save-key`
+
+To save the key of the current encrypted jl file without changing the 
+file. The password is verified before it is saved. The key is stored the 
+same way as `--encrypt-save-key`.
+
+Do not edit the saved password manually in Credential Manager: jl stores
+a key hash there, not the plaintext password. If the saved key is
+incorrect, run `--save-key` again to replace it.
 
 - `jl --decrypt`
 
-To decrypt the encrypted jl file. If you want to change the password, you 
-can do this and encrypt again using your new password. If you got an 
-encrypted jl file but the key is not stored, you can also decrypt it then 
---encrypt-save-key to reset the password and save the key.
+To decrypt the encrypted jl file. The saved key is deleted. If you want 
+to change the password, you can do this and encrypt again using your new 
+password. If you got an encrypted jl file but the key is not stored, you 
+can also decrypt it then --encrypt-save-key to reset the password and 
+save the key.
 
 - `jl --check`
 

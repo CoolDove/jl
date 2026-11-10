@@ -3,6 +3,7 @@
 #load "config.jai";
 #load "console.jai";
 #load "crypto.jai";
+#load "credential.jai";
 #load "time.jai";
 #load "jl.jai";
 
@@ -112,6 +113,9 @@ main :: () {
 		} else if it == "--decrypt" {
 			operation_decrypt();// pre pass
 			exit(0);
+		} else if it == "--save-key" {
+			operation_save_key();// pre pass
+			exit(0);
 		} else if it == "--encrypt-save-key" {
 			operation_encrypt(true);// pre pass
 			exit(0);
@@ -152,14 +156,23 @@ main :: () {
 		using runinfo;
 		file_is_encrypted = true;
 
-		if !try_get_stored_key(*password_sha256) {
+		key_ok, credential_found := try_get_stored_key(target_file, *password_sha256);
+		if !key_ok {
+			if credential_found {
+				print_stored_key_error(true);
+				exit(0);
+			}
 			print("Password:");
 			password_sha256 = sha256(read_pswd(allocator=temp));
 		}
 		cipher := get_encrypted_jlfile_cipher(xx file_content);
 		data, decrypt_ok := jl_decrypt(xx cipher, password_sha256);
 		if !decrypt_ok {
-			print("Wrong password.");
+			if key_ok {
+				print_stored_key_error(credential_found);
+			} else {
+				print("Wrong password.\n");
+			}
 			exit(0);
 		} else {
 			content = xx data;
@@ -541,7 +554,12 @@ operation_decrypt :: () {
 		return;
 	}
 	
-	if !try_get_stored_key(*password_sha256) {
+	key_ok, credential_found := try_get_stored_key(target_file, *password_sha256);
+	if !key_ok {
+		if credential_found {
+			print_stored_key_error(true);
+			return;
+		}
 		print("Password:");
 		password_sha256 = sha256(read_pswd(allocator=temp));
 	}
@@ -549,7 +567,11 @@ operation_decrypt :: () {
 	decrypted_data, dec_ok := jl_decrypt(xx slice(filecontent, JLMAGIC.count, filecontent.count-JLMAGIC.count), password_sha256);
 	defer array_free(decrypted_data);
 	if !dec_ok {
-		print("Wrong password!\n");
+		if key_ok {
+			print_stored_key_error(credential_found);
+		} else {
+			print("Wrong password!\n");
+		}
 		return;
 	}
 
@@ -558,10 +580,40 @@ operation_decrypt :: () {
 	file_close(*file);
 	print("Plain text jl file saved to %.\n", target_file);
 
-	keypath := get_jl_filepath("default.key", temp);
-	if file_exists(keypath) {
-		file_delete(keypath);
-		print("Old key file % deleted.\n", keypath);
+	if delete_stored_key(get_key_target(target_file)) {
+		print("Stored key deleted.\n");
+	}
+}
+
+operation_save_key :: () {
+	using runinfo;
+	filecontent, read_ok := read_entire_file(target_file);
+	if !read_ok {
+		print("Failed to read target file: %.", target_file);
+		return;
+	}
+	defer free(filecontent);
+
+	if !is_data_jl_encrypted(xx filecontent) {
+		print("File is plaintext, there is no password to save.\n");
+		return;
+	}
+
+	print("Password:");
+	key := sha256(read_pswd(allocator=temp));
+
+	cipher := get_encrypted_jlfile_cipher(xx filecontent);
+	decrypted_data, dec_ok := jl_decrypt(xx cipher, key);
+	if !dec_ok {
+		print("Wrong password!\n");
+		return;
+	}
+	array_free(decrypted_data);
+
+	if save_stored_key(get_key_target(target_file), key) {
+		print("Key saved.\n");
+	} else {
+		print("Failed to save the key.\n");
 	}
 }
 
@@ -596,9 +648,11 @@ DONE);
 		file_close(*file);
 		print("Encrypted jl file saved to %.\n", target_file);
 		if save_key {
-			keypath := get_jl_filepath("default.key", temp);
-			write_entire_file(keypath, cast(string)sha256_raw_to_hex(password_sha256));
-			print("Key saved to %\n", keypath);
+			if save_stored_key(get_key_target(target_file), password_sha256) {
+				print("Key saved.\n");
+			} else {
+				print("Failed to save the key.\n");
+			}
 		}
 	}
 }
@@ -616,7 +670,8 @@ operation_check_password :: () {
 	}
 	
 	stored_key: [32]u8;
-	if try_get_stored_key(*stored_key) {
+	stored_ok, credential_found := try_get_stored_key(target_file, *stored_key);
+	if stored_ok {
 		print("Password:");
 		input_key := sha256(read_pswd(allocator=temp));
 		correct := true;
@@ -632,6 +687,10 @@ operation_check_password :: () {
 			print("\e[35mPassword incorrect!\e[39m\n");
 		}
 	} else {
+		if credential_found {
+			print_stored_key_error(true);
+			return;
+		}
 		print("Password is not stored, no need to check.");
 		return;
 	}
@@ -642,20 +701,29 @@ file_exists :: (path: string) -> bool {
 	return ok;
 }
 
-try_get_stored_key :: (outkey: *[32]u8) -> bool {
-	keypath := get_jl_filepath("default.key", temp);
+get_key_target :: (target_file: string) -> string {
+	absolute, ok := get_absolute_path(target_file);
+	if !ok absolute = target_file;
+	return tprint("jl:%", absolute);
+}
 
-	f, fopenok := file_open(keypath);
-	if !fopenok  return false; 
-	file_close(*f);
+try_get_stored_key :: (target_file: string, outkey: *[32]u8) -> (ok: bool, credential_found: bool) {
+	loaded, found := load_stored_key(get_key_target(target_file), outkey);
+	return loaded, found;
+}
 
-	hexkey, ok := read_entire_file(keypath);
-	assert(hexkey.count == 64);
-	if !ok return false;
-	rawkey, convert_ok := sha256_hex_to_raw(cast([64]u8)hexkey.data);
-	if !convert_ok return false;
-	outkey.* = rawkey;
-	return ok;
+print_stored_key_error :: (from_credential_manager: bool) {
+	#if OS == .WINDOWS {
+		if from_credential_manager {
+			print(#string DONE
+The password saved in Windows Credential Manager is incorrect.
+Run `jl --save-key` to save a valid password again.
+Do not edit the saved password manually in Credential Manager: jl stores a key hash there, not the plaintext password.
+DONE);
+			return;
+		}
+	}
+	print("The saved password is incorrect. Run `jl --save-key` to save a valid password again.\n");
 }
 
 sha256 :: (str: string) -> [32]u8 {
@@ -703,8 +771,9 @@ And operations you have:
 
 Encryption:
 - jl --encrypt          # To encrypt current jl file.
-- jl --encrypt-save-key # To encrypt and save the key in the computer.
-- jl --decrypt          # Decrypt the encrypted jl file.
+- jl --encrypt-save-key # To encrypt and save the key.
+- jl --save-key         # Save the key of the current encrypted jl file.
+- jl --decrypt          # Decrypt the encrypted jl file and delete the saved key.
 - jl --check            # To make sure you are still remembering the correct password.
 DONE
 
