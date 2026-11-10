@@ -434,7 +434,7 @@ operation_edit :: () {
 
 	info.editted = editted_jlfile.records.count;
 
-	if info.editted == 0 {
+	if info.editted == 0 && info.loaded == 0 {
 		log("Found 0 record, exit without saving...");
 	} else {
 		sb : String_Builder;
