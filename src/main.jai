@@ -225,8 +225,10 @@ main :: () {
 		for * jlfile.records array_add(*matched_records, it);
 	}
 
-	bubble_sort(array_view(matched_records, 0), (a: *JlRecord, b: *JlRecord) -> int {
-		return ifx a.apollo_time > b.apollo_time then -1 else 1;
+	quick_sort(matched_records, (a: *JlRecord, b: *JlRecord) -> int {
+		if a.apollo_time > b.apollo_time return -1;
+		if a.apollo_time < b.apollo_time return  1;
+		return 0;
 	});
 	#if DEBUG timer_end(*timer_filter_and_sort);
 
@@ -490,7 +492,7 @@ operation_list_tags :: () {
 
 	#import "Hash_Table";
 	table : Table(string, int);
-	init(*table); defer deinit(*table);
+	defer deinit(*table);
 
 	longest_tag_length : int;
 	for matched_records {
@@ -515,8 +517,10 @@ operation_list_tags :: () {
 		tag_infos.count += 1;
 		tag_infos[tag_infos.count-1] = .{it_index, it};
 	}
-	bubble_sort(tag_infos, (a: TagInfo, b: TagInfo) -> int {
-		return ifx a.count > b.count then -1 else 1;
+	quick_sort(tag_infos, (a: TagInfo, b: TagInfo) -> int {
+		if a.count > b.count return -1;
+		if a.count < b.count return  1;
+		return 0;
 	});
 	for tag_infos {
 		spacing := slice(spaces, 0, min(spaces.count, longest_tag_length+1-it.tag.count));
