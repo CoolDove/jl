@@ -2,9 +2,17 @@ JlRecord :: struct {
 	time : Calendar_Time;
 	apollo_time : Apollo_Time;
 	content : string; // Reallocated with default allocator, will be freed in `jlfile_release()`.
+	special_timetag : Special_Time_Tag;
+
 	// runtime
 	exclude : bool;
 }
+
+Special_Time_Tag :: enum u8 {
+	none;
+	now;
+}
+
 JlFile :: struct {
 	records : []JlRecord;
 }
@@ -29,6 +37,7 @@ jlfile_parse :: (src: string, allocator:=context.allocator) -> JlFile {
 				time = time,
 				apollo_time = apollo_time,
 				content = str,
+				special_timetag = special_timetag,
 			};
 			array_add(*records, record);
 		}
@@ -36,22 +45,50 @@ jlfile_parse :: (src: string, allocator:=context.allocator) -> JlFile {
 
 	time : Calendar_Time;
 	apollo_time : Apollo_Time;
+	special_timetag : Special_Time_Tag;
 	source := src;
 
 	for:string_by_line line, idx:source {
 		next_time : Calendar_Time;
 		next_apollo_time : Apollo_Time;
-		if line != "" && trim(line) != "" && line[0] == #char "[" && try_parse_calendar_time(line, *next_time, *next_apollo_time) {
-			// ** upload current
+		has_time_prefix := line != "" && trim(line) != "" && line[0] == #char "[";
+		next_special_timetag : Special_Time_Tag;
+		if has_time_prefix next_special_timetag = try_parse_special_time_tag(line);
+		if next_special_timetag != .none {
+
 			SUBMIT_CURRENT();
+
+			// The real time is filled in when the edited file is saved.
+			time = to_calendar(current_time_consensus(), .LOCAL);
+			apollo_time, _ = jlfile_calendar_to_apollo(time);
+			special_timetag = next_special_timetag;
+
+		} else if has_time_prefix && try_parse_calendar_time(line, *next_time, *next_apollo_time) {
+
+			SUBMIT_CURRENT();
+
 			time = next_time;
 			apollo_time = next_apollo_time;
+			special_timetag = .none;
+
 		}
 		append(*buffer, line);
 		append(*buffer, "\n");
 	}
 	SUBMIT_CURRENT();
 	return .{records};
+}
+
+// Parse the special tag written at the very beginning of `line`, or `.none`.
+// Matching is case-insensitive, e.g. `[now]`, `[NOW]` and `[Now]` all work.
+try_parse_special_time_tag :: (line: string) -> (tag: Special_Time_Tag) {
+	for enum_values_as_enum(Special_Time_Tag) {
+		if it == .none continue;
+		text := tprint("[%]", it);
+		if line.count < text.count continue;
+		if equal_nocase(slice(line, 0, text.count), text) return it;
+	}
+	return .none;
 }
 
 jlfile_release :: (file: *JlFile) {

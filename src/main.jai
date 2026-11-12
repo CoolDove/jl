@@ -401,9 +401,10 @@ operation_edit :: () {
 		edfile := file_open(edit_file, for_writing=true, keep_existing_content=false);
 		defer file_close(*edfile);
 		if runinfo.create_mode {
-			apltime := current_time_consensus();
-			ct := to_calendar(current_time_consensus(), .LOCAL);
-			file_write(*edfile, tprint("% ", jlfile_time_to_string(ct)));
+			// Write the `[now]` tag so the timestamp is filled in when editing
+			// is finished, not when the edit file is created.
+			now_tag : Special_Time_Tag = .now;
+			file_write(*edfile, tprint("[%] ", now_tag));
 		} else {
 			for matched_records {
 				file_write(*edfile, it.content);
@@ -453,13 +454,24 @@ operation_edit :: () {
 		sb : String_Builder;
 		init_string_builder(*sb); defer free_buffers(*sb);
 
+		// Records with a special time tag (e.g. `[now]`) get the time at which
+		// editing is finished.
+		save_time_str := jlfile_time_to_string(to_calendar(current_time_consensus(), .LOCAL));
+
 		for * jlfile.records {
 			if !runinfo.create_mode && !it.exclude continue;
 			append(*sb, it.content);
 			append(*sb, "\n");
 		}
 		for * editted_jlfile.records {
-			append(*sb, it.content);
+			if #complete it.special_timetag == {
+				case .none;
+					append(*sb, it.content);
+				case .now;
+					tag_text := tprint("[%]", it.special_timetag);
+					append(*sb, save_time_str);
+					append(*sb, slice(it.content, tag_text.count, it.content.count-tag_text.count));
+			}
 			append(*sb, "\n");
 		}
 		content := builder_to_string(*sb); defer free(content);

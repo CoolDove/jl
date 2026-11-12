@@ -60,6 +60,17 @@ Print matched records to the terminal.
 
 List all tags in matched records.
 
+## Edit
+
+### Deletion
+If you want to delete some records, you just edit and delete them in the
+edit file. They will be deleted after you finish the editting.
+
+### Update the timestamp
+When edit some records, you can change the timestamp manually. Also you can
+change it to `[now]`, the timestamp of the record will be the time when you
+finish editting.
+
 # Encrypt
 - `jl --encrypt`
 
