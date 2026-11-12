@@ -49,6 +49,9 @@ runinfo :struct {
 now : Calendar_Time;
 now_date : Date;
 
+// JL_VERSION is provided by build.jai, which resolves it from the nearest git
+// tag at build time (and falls back when git information is unavailable).
+
 main :: () {
 	#if false { // test read input
 		print("Input: ");
@@ -67,6 +70,19 @@ main :: () {
 	init_console();
 
 	args := get_command_line_arguments();
+
+	// ** help and version exit before touching the jl file
+	for args {
+		if it_index == 0 continue;
+		if it == "--version" || it == "--v" {
+			print("jl %\n", JL_VERSION);
+			exit(0);
+		}
+		if it == "--help" || it == "--h" {
+			print("jl %\n\n%", JL_VERSION, HELP_STRING);
+			exit(0);
+		}
+	}
 
 	jlfolder := get_jl_directory();
 	make_directory_if_it_does_not_exist(jlfolder);
@@ -104,9 +120,6 @@ main :: () {
 		} else if it == "--t" || it == "--tags" {
 			runinfo.operation = .ListTags;
 			runinfo.operation_specified = true;
-		} else if it == "--help" || it == "-help" || it == "--h" || it == "-h" {
-			print(HELP_STRING);
-			exit(0);
 		} else if it == "--check" {// check password, in case i forget
 			operation_check_password();
 			exit(0);
@@ -775,6 +788,10 @@ Encryption:
 - jl --save-key         # Save the key of the current encrypted jl file.
 - jl --decrypt          # Decrypt the encrypted jl file and delete the saved key.
 - jl --check            # To make sure you are still remembering the correct password.
+
+Informations:
+- jl --version   # Print the version of jl.
+- jl --help      # Print this help document.
 DONE
 
 is_data_jl_encrypted :: inline (data: []u8) -> bool {

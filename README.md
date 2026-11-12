@@ -60,10 +60,6 @@ Print matched records to the terminal.
 
 List all tags in matched records.
 
-- help: `jl --help|-help|--h|-h`
-
-Print the help document.
-
 # Encrypt
 - `jl --encrypt`
 
