@@ -403,7 +403,8 @@ operation_edit :: () {
 		if runinfo.create_mode {
 			// Write the `[now]` tag so the timestamp is filled in when editing
 			// is finished, not when the edit file is created.
-			file_write(*edfile, tprint("% ", special_time_tag_to_string(.now)));
+			now_tag : Special_Time_Tag = .now;
+			file_write(*edfile, tprint("[%] ", now_tag));
 		} else {
 			for matched_records {
 				file_write(*edfile, it.content);
@@ -467,9 +468,9 @@ operation_edit :: () {
 				case .none;
 					append(*sb, it.content);
 				case .now;
-					tag_count := special_time_tag_to_string(.now).count;
+					tag_text := tprint("[%]", it.special_timetag);
 					append(*sb, save_time_str);
-					append(*sb, slice(it.content, tag_count, it.content.count-tag_count));
+					append(*sb, slice(it.content, tag_text.count, it.content.count-tag_text.count));
 			}
 			append(*sb, "\n");
 		}
