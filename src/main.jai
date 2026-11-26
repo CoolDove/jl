@@ -35,6 +35,9 @@ runinfo :struct {
 	// password : string;
 	password_sha256 : [32]u8;
 	file_is_encrypted : bool;
+	// The format version the file was read with, so the save path can tell
+	// whether it is about to be silently upgraded.
+	enc_version : Enc_Version;
 
 	create_mode  : bool;
 
@@ -178,8 +181,7 @@ main :: () {
 			print("Password:");
 			password_sha256 = sha256(read_pswd(allocator=temp));
 		}
-		cipher := get_encrypted_jlfile_cipher(xx file_content);
-		data, decrypt_ok := jl_decrypt(xx cipher, password_sha256);
+		data, decrypt_ok, version := jl_decrypt(xx file_content, password_sha256);
 		if !decrypt_ok {
 			if key_ok {
 				print_stored_key_error(credential_found);
@@ -188,6 +190,7 @@ main :: () {
 			}
 			exit(0);
 		} else {
+			enc_version = version;
 			content = xx data;
 		}
 	} else {
@@ -476,15 +479,26 @@ operation_edit :: () {
 		}
 		content := builder_to_string(*sb); defer free(content);
 
-		ftarget := file_open(runinfo.target_file, for_writing=true, keep_existing_content=false);
 		if runinfo.file_is_encrypted {
-			file_write(*ftarget, cast(string)JLMAGIC);
-			encrypted := jl_encrypt(xx content, runinfo.password_sha256);
+			encrypted, encrypt_ok := jl_encrypt(xx content, runinfo.password_sha256);
+			if !encrypt_ok {
+				log_error("Encryption failed, the file was not written.");
+				return;
+			}
+			defer array_free(encrypted);
+
+			ftarget := file_open(runinfo.target_file, for_writing=true, keep_existing_content=false);
 			file_write(*ftarget, cast(string)encrypted);
+			file_close(*ftarget);
+
+			if runinfo.enc_version != .v2 {
+				log("Encryption upgraded to AES-256-GCM.");
+			}
 		} else {
+			ftarget := file_open(runinfo.target_file, for_writing=true, keep_existing_content=false);
 			file_write(*ftarget, content);
+			file_close(*ftarget);
 		}
-		file_close(*ftarget);
 
 		deleted := info.loaded-info.editted;
 		log("Load %/% records, save % records.%", info.loaded, info.all, info.editted,
@@ -589,7 +603,7 @@ operation_decrypt :: () {
 		password_sha256 = sha256(read_pswd(allocator=temp));
 	}
 
-	decrypted_data, dec_ok := jl_decrypt(xx slice(filecontent, JLMAGIC.count, filecontent.count-JLMAGIC.count), password_sha256);
+	decrypted_data, dec_ok, _ := jl_decrypt(xx filecontent, password_sha256);
 	defer array_free(decrypted_data);
 	if !dec_ok {
 		if key_ok {
@@ -627,8 +641,7 @@ operation_save_key :: () {
 	print("Password:");
 	key := sha256(read_pswd(allocator=temp));
 
-	cipher := get_encrypted_jlfile_cipher(xx filecontent);
-	decrypted_data, dec_ok := jl_decrypt(xx cipher, key);
+	decrypted_data, dec_ok, _ := jl_decrypt(xx filecontent, key);
 	if !dec_ok {
 		print("Wrong password!\n");
 		return;
@@ -665,10 +678,14 @@ DONE);
 	if password != repeat {
 		print("Please input the same password!\n");
 	} else {
-		encrypted_data := jl_encrypt(xx filecontent, password_sha256);
+		encrypted_data, encrypt_ok := jl_encrypt(xx filecontent, password_sha256);
+		if !encrypt_ok {
+			log_error("Encryption failed.");
+			return;
+		}
 		defer array_free(encrypted_data);
+
 		file := file_open(target_file, for_writing=true);
-		file_write(*file, cast(string)JLMAGIC);
 		file_write(*file, cast(string)encrypted_data);
 		file_close(*file);
 		print("Encrypted jl file saved to %.\n", target_file);
@@ -768,8 +785,6 @@ sha256 :: (str: string) -> [32]u8 {
 	getenv :: Windows.getenv;
 }
 
-JLMAGIC :[16]u8: xx "VMWVWWWVWWVMVWMM";
-
 
 HELP_STRING :: #string DONE
 Hello, `jl` is a lightweight journaling tool inspired by `jrnl`.
@@ -805,14 +820,6 @@ Informations:
 - jl --version   # Print the version of jl.
 - jl --help      # Print this help document.
 DONE
-
-is_data_jl_encrypted :: inline (data: []u8) -> bool {
-	return begins_with(cast(string)data, cast(string)JLMAGIC);
-}
-
-get_encrypted_jlfile_cipher :: inline (data: []u8) -> []u8 {
-	return array_view(data, JLMAGIC.count, data.count-JLMAGIC.count);
-}
 
 read_pswd :: #bake_arguments read_stdin(invisible=true);
 
