@@ -72,6 +72,16 @@ change it to `[now]`, the timestamp of the record will be the time when you
 finish editting.
 
 # Encrypt
+Encrypted jl files are protected with AES-256-GCM. The key is derived from
+the password with scrypt, using a random salt per file; a fresh nonce is used
+every time the file is written, and the header is authenticated, so a
+truncated or modified file is rejected instead of being silently accepted.
+
+Files written by older versions (AES-256-CBC) are still readable. The next
+time such a file is saved it is silently rewritten in the new format; no
+password re-entry is needed, and the stored key keeps working. Note that
+older jl builds cannot read files saved by this version.
+
 - `jl --encrypt`
 
 To encrypt the jl file with a password. You will need to input the 

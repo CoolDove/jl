@@ -78,6 +78,14 @@ EVP_CIPHER_CTX_set_key_length :: (ctx: *EVP_CIPHER_CTX, keylen: cint) -> cint #f
 EVP_CIPHER_CTX_set_padding    :: (ctx: *EVP_CIPHER_CTX, pad: cint) -> cint #foreign libcrypto;
 
 EVP_aes_256_cbc        :: () -> *EVP_CIPHER #foreign libcrypto;
+EVP_aes_256_gcm        :: () -> *EVP_CIPHER #foreign libcrypto;
+
+EVP_CIPHER_CTX_ctrl    :: (ctx: *EVP_CIPHER_CTX, type: cint, arg: cint, ptr: *void) -> cint #foreign libcrypto;
+
+// The `ctrl` commands used to pass the nonce length and the GCM tag.
+EVP_CTRL_GCM_SET_IVLEN :: 0x9;
+EVP_CTRL_GCM_GET_TAG   :: 0x10;
+EVP_CTRL_GCM_SET_TAG   :: 0x11;
 
 EVP_EncryptInit_ex     :: (ctx: *EVP_CIPHER_CTX, cipher: *EVP_CIPHER, engine: *ENGINE, key: *u8, iv: *u8) -> cint #foreign libcrypto;
 EVP_EncryptUpdate      :: (ctx: *EVP_CIPHER_CTX, out: *u8, outlen: *cint, in: *u8, inlen: cint) -> cint #foreign libcrypto;
@@ -99,6 +107,9 @@ EVP_sha256             :: () -> *EVP_MD #foreign libcrypto;
 SHA256                 :: (d: *u8, n: culong, md: *u8) -> *u8 #foreign libcrypto;
 
 PKCS5_PBKDF2_HMAC :: (pass: *u8, passlen: cint, salt: *u8, saltlen: cint, iter: cint, digest: *EVP_MD, keylen: cint, out: *u8) -> int #foreign libcrypto;
+
+EVP_PBE_scrypt :: (pass: *u8, passlen: u64, salt: *u8, saltlen: u64,
+                   N: u64, r: u64, p: u64, maxmem: u64, key: *u8, keylen: u64) -> cint #foreign libcrypto;
 
 // Can use this to generate IV.
 RAND_bytes             :: (buf: *u8, num: cint) -> cint #foreign libcrypto;

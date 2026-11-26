@@ -36,6 +36,9 @@ runinfo :struct {
 	// password : string;
 	password_sha256 : [32]u8;
 	file_is_encrypted : bool;
+	// The format version the file was read with, so the save path can tell
+	// whether it is about to be silently upgraded.
+	enc_version : Enc_Version;
 
 	create_mode  : bool;
 
@@ -185,8 +188,7 @@ main :: () {
 			print("Password:");
 			password_sha256 = sha256(read_pswd(allocator=temp));
 		}
-		cipher := get_encrypted_jlfile_cipher(xx file_content);
-		data, decrypt_ok := jl_decrypt(xx cipher, password_sha256);
+		data, decrypt_ok, version := jl_decrypt(xx file_content, password_sha256);
 		if !decrypt_ok {
 			if key_ok {
 				print_stored_key_error(credential_found);
@@ -195,6 +197,7 @@ main :: () {
 			}
 			exit(0);
 		} else {
+			enc_version = version;
 			content = xx data;
 		}
 	} else {
@@ -484,15 +487,30 @@ operation_edit :: () {
 		content := builder_to_string(*sb); defer free(content);
 
 		backup_current_file(runinfo.target_file);
-		ftarget := file_open(runinfo.target_file, for_writing=true, keep_existing_content=false);
 		if runinfo.file_is_encrypted {
-			file_write(*ftarget, cast(string)JLMAGIC);
-			encrypted := jl_encrypt(xx content, runinfo.password_sha256);
-			file_write(*ftarget, cast(string)encrypted);
+			encrypted, encrypt_ok := jl_encrypt(xx content, runinfo.password_sha256);
+			if !encrypt_ok {
+				log_error("Encryption failed, the file was not written.");
+				return;
+			}
+			defer array_free(encrypted);
+
+			if !write_file_atomically(runinfo.target_file, cast(string)encrypted) {
+				log_error("Failed to write '%'.", runinfo.target_file);
+				return;
+			}
+
+			#if DEBUG {
+				if runinfo.enc_version != .v2 {
+					log("Encryption upgraded to AES-256-GCM.");
+				}
+			}
 		} else {
-			file_write(*ftarget, content);
+			if !write_file_atomically(runinfo.target_file, content) {
+				log_error("Failed to write '%'.", runinfo.target_file);
+				return;
+			}
 		}
-		file_close(*ftarget);
 
 		deleted := info.loaded-info.editted;
 		log("Load %/% records, save % records.%", info.loaded, info.all, info.editted,
@@ -597,7 +615,7 @@ operation_decrypt :: () {
 		password_sha256 = sha256(read_pswd(allocator=temp));
 	}
 
-	decrypted_data, dec_ok := jl_decrypt(xx slice(filecontent, JLMAGIC.count, filecontent.count-JLMAGIC.count), password_sha256);
+	decrypted_data, dec_ok, _ := jl_decrypt(xx filecontent, password_sha256);
 	defer array_free(decrypted_data);
 	if !dec_ok {
 		if key_ok {
@@ -609,9 +627,10 @@ operation_decrypt :: () {
 	}
 
 	backup_current_file(target_file);
-	file := file_open(target_file, for_writing=true);
-	file_write(*file, cast(string)decrypted_data);
-	file_close(*file);
+	if !write_file_atomically(target_file, cast(string)decrypted_data) {
+		log_error("Failed to write '%'.", target_file);
+		return;
+	}
 	print("Plain text jl file saved to %.\n", target_file);
 
 	if delete_stored_key(get_key_target(target_file)) {
@@ -636,8 +655,7 @@ operation_save_key :: () {
 	print("Password:");
 	key := sha256(read_pswd(allocator=temp));
 
-	cipher := get_encrypted_jlfile_cipher(xx filecontent);
-	decrypted_data, dec_ok := jl_decrypt(xx cipher, key);
+	decrypted_data, dec_ok, _ := jl_decrypt(xx filecontent, key);
 	if !dec_ok {
 		print("Wrong password!\n");
 		return;
@@ -674,13 +692,18 @@ DONE);
 	if password != repeat {
 		print("Please input the same password!\n");
 	} else {
-		encrypted_data := jl_encrypt(xx filecontent, password_sha256);
+		encrypted_data, encrypt_ok := jl_encrypt(xx filecontent, password_sha256);
+		if !encrypt_ok {
+			log_error("Encryption failed.");
+			return;
+		}
 		defer array_free(encrypted_data);
+
 		backup_current_file(target_file);
-		file := file_open(target_file, for_writing=true);
-		file_write(*file, cast(string)JLMAGIC);
-		file_write(*file, cast(string)encrypted_data);
-		file_close(*file);
+		if !write_file_atomically(target_file, cast(string)encrypted_data) {
+			log_error("Failed to write '%'.", target_file);
+			return;
+		}
 		print("Encrypted jl file saved to %.\n", target_file);
 		if save_key {
 			if save_stored_key(get_key_target(target_file), password_sha256) {
@@ -736,6 +759,48 @@ file_exists :: (path: string) -> bool {
 	return ok;
 }
 
+// Writes `data` to `path` without ever leaving a half-written jl file behind:
+// the new content goes to a temporary file next to it, which then replaces the
+// original in one rename. A crash in the middle keeps the old file intact.
+write_file_atomically :: (path: string, data: string) -> bool {
+	push_allocator(temp);
+	temporary := tprint("%.tmp", path);
+
+	if !write_entire_file(temporary, data) {
+		file_delete(temporary);
+		return false;
+	}
+	if !replace_file(temporary, path) {
+		file_delete(temporary);
+		return false;
+	}
+	return true;
+}
+
+replace_file :: (from: string, to: string) -> bool {
+	#if OS == .WINDOWS {
+		wide_from, from_ok, _ := utf8_to_wide(from);
+		if !from_ok return false;
+		wide_to, to_ok, _ := utf8_to_wide(to);
+		if !to_ok return false;
+		return MoveFileExW(wide_from, wide_to, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+	} else {
+		// rename(2) replaces the target atomically.
+		return file_move(from, to);
+	}
+}
+
+#if OS == .WINDOWS {
+	#import "Windows_Utf8";
+
+	kernel32 :: #library,system "kernel32";
+
+	MOVEFILE_REPLACE_EXISTING :: 0x1;
+	MOVEFILE_WRITE_THROUGH    :: 0x8;
+
+	MoveFileExW :: (existing_file: *u16, new_file: *u16, flags: u32) -> s32 #foreign kernel32;
+}
+
 get_key_target :: (target_file: string) -> string {
 	absolute, ok := get_absolute_path(target_file);
 	if !ok absolute = target_file;
@@ -778,8 +843,6 @@ sha256 :: (str: string) -> [32]u8 {
 	getenv :: Windows.getenv;
 }
 
-JLMAGIC :[16]u8: xx "VMWVWWWVWWVMVWMM";
-
 
 HELP_STRING :: #string DONE
 Hello, `jl` is a lightweight journaling tool inspired by `jrnl`.
@@ -815,14 +878,6 @@ Informations:
 - jl --version   # Print the version of jl.
 - jl --help      # Print this help document.
 DONE
-
-is_data_jl_encrypted :: inline (data: []u8) -> bool {
-	return begins_with(cast(string)data, cast(string)JLMAGIC);
-}
-
-get_encrypted_jlfile_cipher :: inline (data: []u8) -> []u8 {
-	return array_view(data, JLMAGIC.count, data.count-JLMAGIC.count);
-}
 
 read_pswd :: #bake_arguments read_stdin(invisible=true);
 
