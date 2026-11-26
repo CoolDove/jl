@@ -6,6 +6,7 @@
 #load "credential.jai";
 #load "time.jai";
 #load "jl.jai";
+#load "backup.jai";
 
 process_edit : Process;
 
@@ -134,6 +135,12 @@ main :: () {
 			exit(0);
 		} else if it == "--encrypt" {
 			operation_encrypt(false);// pre pass
+			exit(0);
+		} else if it == "--backup-list" {
+			operation_backup_list();// hidden feature
+			exit(0);
+		} else if it == "--backup-clear" {
+			operation_backup_clear();// hidden feature
 			exit(0);
 		} else if try_parse_time_filter_group(it, *runinfo.time_filter.small, *runinfo.time_filter.big, "only_small") {
 			runinfo.time_filter.activate = true;
@@ -476,6 +483,7 @@ operation_edit :: () {
 		}
 		content := builder_to_string(*sb); defer free(content);
 
+		backup_current_file(runinfo.target_file);
 		ftarget := file_open(runinfo.target_file, for_writing=true, keep_existing_content=false);
 		if runinfo.file_is_encrypted {
 			file_write(*ftarget, cast(string)JLMAGIC);
@@ -600,6 +608,7 @@ operation_decrypt :: () {
 		return;
 	}
 
+	backup_current_file(target_file);
 	file := file_open(target_file, for_writing=true);
 	file_write(*file, cast(string)decrypted_data);
 	file_close(*file);
@@ -667,6 +676,7 @@ DONE);
 	} else {
 		encrypted_data := jl_encrypt(xx filecontent, password_sha256);
 		defer array_free(encrypted_data);
+		backup_current_file(target_file);
 		file := file_open(target_file, for_writing=true);
 		file_write(*file, cast(string)JLMAGIC);
 		file_write(*file, cast(string)encrypted_data);
