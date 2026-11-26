@@ -6,6 +6,7 @@
 #load "credential.jai";
 #load "time.jai";
 #load "jl.jai";
+#load "backup.jai";
 
 process_edit : Process;
 
@@ -137,6 +138,12 @@ main :: () {
 			exit(0);
 		} else if it == "--encrypt" {
 			operation_encrypt(false);// pre pass
+			exit(0);
+		} else if it == "--backup-list" {
+			operation_backup_list();// hidden feature
+			exit(0);
+		} else if it == "--backup-clear" {
+			operation_backup_clear();// hidden feature
 			exit(0);
 		} else if try_parse_time_filter_group(it, *runinfo.time_filter.small, *runinfo.time_filter.big, "only_small") {
 			runinfo.time_filter.activate = true;
@@ -479,6 +486,7 @@ operation_edit :: () {
 		}
 		content := builder_to_string(*sb); defer free(content);
 
+		backup_current_file(runinfo.target_file);
 		if runinfo.file_is_encrypted {
 			encrypted, encrypt_ok := jl_encrypt(xx content, runinfo.password_sha256);
 			if !encrypt_ok {
@@ -487,17 +495,21 @@ operation_edit :: () {
 			}
 			defer array_free(encrypted);
 
-			ftarget := file_open(runinfo.target_file, for_writing=true, keep_existing_content=false);
-			file_write(*ftarget, cast(string)encrypted);
-			file_close(*ftarget);
+			if !write_file_atomically(runinfo.target_file, cast(string)encrypted) {
+				log_error("Failed to write '%'.", runinfo.target_file);
+				return;
+			}
 
-			if runinfo.enc_version != .v2 {
-				log("Encryption upgraded to AES-256-GCM.");
+			#if DEBUG {
+				if runinfo.enc_version != .v2 {
+					log("Encryption upgraded to AES-256-GCM.");
+				}
 			}
 		} else {
-			ftarget := file_open(runinfo.target_file, for_writing=true, keep_existing_content=false);
-			file_write(*ftarget, content);
-			file_close(*ftarget);
+			if !write_file_atomically(runinfo.target_file, content) {
+				log_error("Failed to write '%'.", runinfo.target_file);
+				return;
+			}
 		}
 
 		deleted := info.loaded-info.editted;
@@ -614,9 +626,11 @@ operation_decrypt :: () {
 		return;
 	}
 
-	file := file_open(target_file, for_writing=true);
-	file_write(*file, cast(string)decrypted_data);
-	file_close(*file);
+	backup_current_file(target_file);
+	if !write_file_atomically(target_file, cast(string)decrypted_data) {
+		log_error("Failed to write '%'.", target_file);
+		return;
+	}
 	print("Plain text jl file saved to %.\n", target_file);
 
 	if delete_stored_key(get_key_target(target_file)) {
@@ -685,9 +699,11 @@ DONE);
 		}
 		defer array_free(encrypted_data);
 
-		file := file_open(target_file, for_writing=true);
-		file_write(*file, cast(string)encrypted_data);
-		file_close(*file);
+		backup_current_file(target_file);
+		if !write_file_atomically(target_file, cast(string)encrypted_data) {
+			log_error("Failed to write '%'.", target_file);
+			return;
+		}
 		print("Encrypted jl file saved to %.\n", target_file);
 		if save_key {
 			if save_stored_key(get_key_target(target_file), password_sha256) {
@@ -741,6 +757,48 @@ operation_check_password :: () {
 file_exists :: (path: string) -> bool {
 	f, ok := file_open(path); defer file_close(*f);
 	return ok;
+}
+
+// Writes `data` to `path` without ever leaving a half-written jl file behind:
+// the new content goes to a temporary file next to it, which then replaces the
+// original in one rename. A crash in the middle keeps the old file intact.
+write_file_atomically :: (path: string, data: string) -> bool {
+	push_allocator(temp);
+	temporary := tprint("%.tmp", path);
+
+	if !write_entire_file(temporary, data) {
+		file_delete(temporary);
+		return false;
+	}
+	if !replace_file(temporary, path) {
+		file_delete(temporary);
+		return false;
+	}
+	return true;
+}
+
+replace_file :: (from: string, to: string) -> bool {
+	#if OS == .WINDOWS {
+		wide_from, from_ok, _ := utf8_to_wide(from);
+		if !from_ok return false;
+		wide_to, to_ok, _ := utf8_to_wide(to);
+		if !to_ok return false;
+		return MoveFileExW(wide_from, wide_to, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+	} else {
+		// rename(2) replaces the target atomically.
+		return file_move(from, to);
+	}
+}
+
+#if OS == .WINDOWS {
+	#import "Windows_Utf8";
+
+	kernel32 :: #library,system "kernel32";
+
+	MOVEFILE_REPLACE_EXISTING :: 0x1;
+	MOVEFILE_WRITE_THROUGH    :: 0x8;
+
+	MoveFileExW :: (existing_file: *u16, new_file: *u16, flags: u32) -> s32 #foreign kernel32;
 }
 
 get_key_target :: (target_file: string) -> string {
